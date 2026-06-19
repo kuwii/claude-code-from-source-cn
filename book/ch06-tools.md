@@ -1,67 +1,67 @@
-# Chapter 6: Tools -- From Definition to Execution
+# 第6章：工具——从定义到执行
 
-## The Nervous System
+## 神经系统
 
-Chapter 5 showed you the agent loop -- the `while(true)` that streams model responses, collects tool calls, and feeds results back. The loop is the heartbeat. But the heartbeat is meaningless without the nervous system that translates "the model wants to run `git status`" into an actual shell command, with permission checks, result budgeting, and error handling.
+第5章向你展示了智能体循环（agent loop）——那个流式传输模型响应、收集工具调用并将结果反馈回去的 `while(true)` 循环。这个循环是心跳。但是，如果没有将“模型想要运行 `git status`”转化为实际 shell 命令的神经系统，包括权限检查、结果预算控制和错误处理，那么心跳就毫无意义。
 
-The tool system is that nervous system. It spans 40+ tool implementations, a centralized registry with feature-flag gating, a 14-step execution pipeline, a permission resolver with seven modes, and a streaming executor that starts tools before the model finishes its response.
+工具系统就是那个神经系统。它涵盖了40多个工具实现、一个带有功能标志 gating 的集中式注册表、一个14步执行管道、一个具有七种模式的权限解析器，以及一个在模型完成其响应之前就开始启动工具的流式执行器。
 
-Every tool call in Claude Code -- every file read, every shell command, every grep, every sub-agent dispatch -- flows through the same pipeline. The uniformity is the point: whether the tool is a built-in Bash executor or a third-party MCP server, it gets the same validation, the same permission checks, the same result budgeting, the same error classification.
+Claude Code 中的每一次工具调用——每一次文件读取、每一个 shell 命令、每一次 grep、每一次子智能体分发——都流经同一个管道。这种统一性是核心所在：无论工具是内置的 Bash 执行器还是第三方 MCP 服务器，它都会获得相同的验证、相同的权限检查、相同的结果预算控制以及相同的错误分类。
 
-The `Tool` interface has approximately 45 members. That sounds overwhelming, but only five matter for understanding how the system works:
+`Tool` 接口大约有45个成员。这听起来令人望而生畏，但对于理解系统如何工作而言，只有五个成员至关重要：
 
-1. **`call()`** -- execute the tool
-2. **`inputSchema`** -- validate and parse the input
-3. **`isConcurrencySafe()`** -- can this run in parallel?
-4. **`checkPermissions()`** -- is this allowed?
-5. **`validateInput()`** -- does this input make semantic sense?
+1. **`call()`** —— 执行工具
+2. **`inputSchema`** —— 验证并解析输入
+3. **`isConcurrencySafe()`** —— 是否可以并行运行？
+4. **`checkPermissions()`** —— 是否被允许？
+5. **`validateInput()`** —— 此输入在语义上是否有意义？
 
-Everything else -- the 12 rendering methods, the analytics hooks, the search hints -- exists to support the UI and telemetry layers. Start with the five, and the rest falls into place.
+其他所有内容——12种渲染方法、分析钩子、搜索提示——都是为了支持 UI 和遥测层。从这五个开始，其余部分就会迎刃而解。
 
 ---
 
-## The Tool Interface
+## 工具接口
 
-### Three Type Parameters
+### 三个类型参数
 
-Every tool is parameterized over three types:
+每个工具都基于三种类型进行参数化：
 
 ```typescript
 Tool<Input extends AnyObject, Output, P extends ToolProgressData>
 ```
 
-`Input` is a Zod object schema that serves double duty: it generates the JSON Schema sent to the API (so the model knows what parameters to provide), and it validates the model's response at runtime via `safeParse`. `Output` is the TypeScript type of the tool's result. `P` is the progress event type the tool emits while running -- BashTool emits stdout chunks, GrepTool emits match counts, AgentTool emits sub-agent transcripts.
+`Input` 是一个 Zod 对象 schema，它身兼两职：生成发送给 API 的 JSON Schema（以便模型知道要提供什么参数），并在运行时通过 `safeParse` 验证模型的响应。`Output` 是工具结果的 TypeScript 类型。`P` 是工具在运行期间发出的进度事件类型——BashTool 发出 stdout 块，GrepTool 发出匹配计数，AgentTool 发出子智能体转录内容。
 
-### buildTool() and Fail-Closed Defaults
+### buildTool() 和故障关闭（Fail-Closed）默认值
 
-No tool definition directly constructs a `Tool` object. Every tool passes through `buildTool()`, a factory that spreads a defaults object under the tool-specific definition:
+没有任何工具定义直接构造 `Tool` 对象。每个工具都要经过 `buildTool()`，这是一个工厂函数，它在特定于工具的定义之下展开一个默认值对象：
 
 ```typescript
-// Pseudocode — illustrates the fail-closed defaults pattern
+// 伪代码 — 说明故障关闭默认值模式
 const SAFE_DEFAULTS = {
   isEnabled:         () => true,
-  isParallelSafe:    () => false,   // Fail-closed: new tools run serially
-  isReadOnly:        () => false,   // Fail-closed: treated as writes
+  isParallelSafe:    () => false,   // 故障关闭：新工具串行运行
+  isReadOnly:        () => false,   // 故障关闭：视为写入操作
   isDestructive:     () => false,
   checkPermissions:  (input) => ({ behavior: 'allow', updatedInput: input }),
 }
 
 function buildTool(definition) {
-  return { ...SAFE_DEFAULTS, ...definition }  // Definition overrides defaults
+  return { ...SAFE_DEFAULTS, ...definition }  // 定义覆盖默认值
 }
 ```
 
-The defaults are deliberately fail-closed where it matters for safety. A new tool that forgets to implement `isConcurrencySafe` defaults to `false` -- it runs serially, never in parallel. A tool that forgets `isReadOnly` defaults to `false` -- the system treats it as a write operation. A tool that forgets `toAutoClassifierInput` returns an empty string -- the auto-mode security classifier skips it, which means the general permission system handles it instead of an automated bypass.
+这些默认值在涉及安全的关键地方故意采用故障关闭策略。忘记实现 `isConcurrencySafe` 的新工具默认为 `false`——它串行运行，从不并行。忘记 `isReadOnly` 的工具默认为 `false`——系统将其视为写入操作。忘记 `toAutoClassifierInput` 的工具返回空字符串——自动模式安全分类器会跳过它，这意味着由通用权限系统来处理它，而不是自动绕过。
 
-The one default that is *not* fail-closed is `checkPermissions`, which returns `allow`. This seems backwards until you understand the layered permission model: `checkPermissions` is tool-specific logic that runs *after* the general permission system has already evaluated rules, hooks, and mode-based policies. A tool returning `allow` from `checkPermissions` is saying "I have no tool-specific objection" -- it is not granting blanket access. The grouping into sub-objects (`options`, named fields like `readFileState`) provides the structure that focused interfaces would provide, without the ceremony of declaring, implementing, and threading five separate interface types through 40+ call sites.
+唯一*不*采用故障关闭策略的默认值是 `checkPermissions`，它返回 `allow`。这看起来似乎有些反常，直到你理解了分层权限模型：`checkPermissions` 是特定于工具的逻辑，它在通用权限系统已经评估了规则、钩子和基于模式的策略*之后*运行。从 `checkPermissions` 返回 `allow` 的工具是在说“我没有特定于工具的反对意见”——这并不是授予 blanket access（全面访问权限）。分组为子对象（`options`，命名字段如 `readFileState`）提供了聚焦接口所能提供的结构，而无需声明、实现并通过40多个调用点传递五个单独的接口类型的繁琐过程。
 
-### Concurrency Is Input-Dependent
+### 并发依赖于输入
 
-The signature `isConcurrencySafe(input: z.infer<Input>): boolean` takes the parsed input because the same tool can be safe for some inputs and unsafe for others. BashTool is the canonical example: `ls -la` is read-only and concurrency-safe, but `rm -rf /tmp/build` is not. The tool parses the command, classifies each subcommand against known-safe sets, and returns `true` only when every non-neutral part is a search or read operation.
+签名 `isConcurrencySafe(input: z.infer<Input>): boolean` 接收解析后的输入，因为同一个工具对于某些输入可能是安全的，而对于其他输入则不安全。BashTool 是典型的例子：`ls -la` 是只读且并发安全的，但 `rm -rf /tmp/build` 则不是。该工具解析命令，针对已知安全集合对每个子命令进行分类，并且仅当每个非中性部分都是搜索或读取操作时才返回 `true`。
 
-### The ToolResult Return Type
+### ToolResult 返回类型
 
-Every `call()` returns a `ToolResult<T>`:
+每个 `call()` 都返回一个 `ToolResult<T>`：
 
 ```typescript
 type ToolResult<T> = {
@@ -71,33 +71,33 @@ type ToolResult<T> = {
 }
 ```
 
-`data` is the typed output that gets serialized into the API's `tool_result` content block. `newMessages` lets a tool inject additional messages into the conversation -- AgentTool uses this to append sub-agent transcripts. `contextModifier` is a function that mutates the `ToolUseContext` for subsequent tools -- this is how `EnterPlanMode` switches the permission mode. Context modifiers are only honored for non-concurrency-safe tools; if your tool runs in parallel, its modifier is queued until the batch completes.
+`data` 是类型化的输出，会被序列化到 API 的 `tool_result` 内容块中。`newMessages` 允许工具向对话中注入额外的消息——AgentTool 使用它来附加子智能体转录内容。`contextModifier` 是一个用于修改后续工具的 `ToolUseContext` 的函数——这就是 `EnterPlanMode` 切换权限模式的方式。上下文修饰符仅对非并发安全的工具有效；如果你的工具并行运行，其修饰符会被排队，直到批处理完成。
 
 ---
 
-## ToolUseContext: The God Object
+## ToolUseContext：上帝对象
 
-`ToolUseContext` is the massive context bag threaded through every tool call. It has approximately 40 fields. It is, by any reasonable definition, a god object. It exists because the alternative is worse.
+`ToolUseContext` 是一个巨大的上下文包，贯穿每次工具调用。它大约有40个字段。根据任何合理的定义，它都是一个上帝对象（god object）。它的存在是因为替代方案更糟糕。
 
-A tool like BashTool needs the abort controller, the file state cache, the app state, the message history, the tool set, MCP connections, and half a dozen UI callbacks. Threading these as individual parameters would produce function signatures with 15+ arguments. The pragmatic solution is a single context object, grouped by concern:
+像 BashTool 这样的工具需要 abort controller、文件状态缓存、应用状态、消息历史、工具集、MCP 连接以及半打 UI 回调。将这些作为单独的参数传递会产生具有15+个参数的函数签名。务实的解决方案是使用单个上下文对象，并按关注点进行分组：
 
-**Configuration** (`options` sub-object): The tool set, model name, MCP connections, debug flags. Set once at query start, mostly immutable.
+**配置**（`options` 子对象）：工具集、模型名称、MCP 连接、调试标志。在查询开始时设置一次，大部分是不可变的。
 
-**Execution state**: The `abortController` for cancellation, `readFileState` for the LRU file cache, `messages` for the full conversation history. These change during execution.
+**执行状态**：用于取消的 `abortController`，用于 LRU 文件缓存的 `readFileState`，用于完整对话历史的 `messages`。这些在执行过程中会发生变化。
 
-**UI callbacks**: `setToolJSX`, `addNotification`, `requestPrompt`. Only wired in interactive (REPL) contexts. SDK and headless modes leave them undefined.
+**UI 回调**：`setToolJSX`、`addNotification`、`requestPrompt`。仅在交互式（REPL）上下文中连接。SDK 和无头模式将它们保留为 undefined。
 
-**Agent context**: `agentId`, `renderedSystemPrompt` (frozen parent prompt for fork sub-agents -- re-rendering could diverge due to feature flag warm-up and bust the cache).
+**智能体上下文**：`agentId`、`renderedSystemPrompt`（冻结的父级提示，用于 fork 子智能体——重新渲染可能会因功能标志预热而发散并破坏缓存）。
 
-The sub-agent variant of `ToolUseContext` is particularly revealing. When `createSubagentContext()` builds a context for a child agent, it makes deliberate choices about which fields to share and which to isolate: `setAppState` becomes a no-op for async agents, `localDenialTracking` gets a fresh object, `contentReplacementState` is cloned from the parent. Each choice encodes a lesson learned from a production bug.
+`ToolUseContext` 的子智能体变体特别能说明问题。当 `createSubagentContext()` 为子智能体构建上下文时，它会刻意选择哪些字段共享，哪些字段隔离：对于异步智能体，`setAppState` 变为无操作（no-op），`localDenialTracking` 获得一个新对象，`contentReplacementState` 从父级克隆。每个选择都编码了从生产 bug 中学到的教训。
 
 ---
 
-## The Registry
+## 注册表
 
-### getAllBaseTools(): The Single Source of Truth
+### getAllBaseTools()：单一事实来源
 
-The function `getAllBaseTools()` returns the exhaustive list of every tool that could exist in the current process. Always-present tools come first, then conditionally-included tools gated by feature flags:
+函数 `getAllBaseTools()` 返回当前进程中可能存在的每个工具的详尽列表。始终存在的工具排在前面，然后是由功能标志控制的有条件包含的工具：
 
 ```typescript
 const SleepTool = feature('PROACTIVE') || feature('KAIROS')
@@ -105,48 +105,48 @@ const SleepTool = feature('PROACTIVE') || feature('KAIROS')
   : null
 ```
 
-The `feature()` import from `bun:bundle` is resolved at bundle time. When `feature('AGENT_TRIGGERS')` is statically false, the bundler eliminates the entire `require()` call -- dead code elimination that keeps the binary small.
+来自 `bun:bundle` 的 `feature()` 导入在打包时解析。当 `feature('AGENT_TRIGGERS')` 静态为 false 时，打包器会消除整个 `require()` 调用——这种死代码消除保持了二进制文件的小巧。
 
-### assembleToolPool(): Merging Built-in and MCP Tools
+### assembleToolPool()：合并内置工具和 MCP 工具
 
-The final tool set that reaches the model comes from `assembleToolPool()`:
+最终到达模型的完整工具集来自 `assembleToolPool()`：
 
-1. Get built-in tools (with deny-rule filtering, REPL mode hiding, and `isEnabled()` checks)
-2. Filter MCP tools by deny rules
-3. Sort each partition alphabetically by name
-4. Concatenate built-ins (prefix) + MCP tools (suffix)
+1. 获取内置工具（带有拒绝规则过滤、REPL 模式隐藏和 `isEnabled()` 检查）
+2. 按拒绝规则过滤 MCP 工具
+3. 将每个分区按名称字母顺序排序
+4. 连接内置工具（前缀）+ MCP 工具（后缀）
 
-The sort-then-concatenate approach is not aesthetic preference. The API server places a prompt-cache breakpoint after the last built-in tool. A flat sort across all tools would interleave MCP tools into the built-in list, and adding or removing an MCP tool would shift built-in tool positions, invalidating the cache.
+先排序再连接的方法并非出于审美偏好。API 服务器在最后一个内置工具之后放置了一个提示缓存断点。如果对所有工具进行扁平排序，会将 MCP 工具交错插入内置工具列表中，并且添加或删除 MCP 工具会改变内置工具的位置，从而使缓存失效。
 
 ---
 
-## The 14-Step Execution Pipeline
+## 14步执行管道
 
-The function `checkPermissionsAndCallTool()` is where intent becomes action. Every tool call passes through these 14 steps.
+函数 `checkPermissionsAndCallTool()` 是将意图转化为行动的地方。每次工具调用都要经过这14个步骤。
 
 ```mermaid
 graph TD
-    S1[1. Tool Lookup] --> S2[2. Abort Check]
-    S2 --> S3[3. Zod Validation]
-    S3 -->|Fails| ERR1[Input validation error]
-    S3 -->|Passes| S4[4. Semantic Validation]
-    S4 -->|Fails| ERR2[Tool-specific error]
-    S4 -->|Passes| S5[5. Speculative Classifier Start]
-    S5 --> S6[6. Input Backfill - clone, not mutate]
-    S6 --> S7[7. PreToolUse Hooks]
-    S7 -->|Hook denies| ERR3[Hook rejection]
-    S7 -->|Hook stops| STOP[Abort execution]
-    S7 -->|Passes| S8[8. Permission Resolution]
-    S8 --> S9{9. Permission Denied?}
-    S9 -->|Yes| ERR4[Permission denied result]
-    S9 -->|No| S10[10. Tool Execution]
-    S10 --> S11[11. Result Budgeting]
-    S11 --> S12[12. PostToolUse Hooks]
-    S12 --> S13[13. New Messages]
-    S13 --> S14[14. Error Handling]
-    S14 --> DONE[Tool Result → Conversation History]
+    S1[1. 工具查找] --> S2[2. 中止检查]
+    S2 --> S3[3. Zod 验证]
+    S3 -->|失败| ERR1[输入验证错误]
+    S3 -->|通过| S4[4. 语义验证]
+    S4 -->|失败| ERR2[特定于工具的错误]
+    S4 -->|通过| S5[5. 推测性分类器启动]
+    S5 --> S6[6. 输入回填 - 克隆，而非突变]
+    S6 --> S7[7. PreToolUse 钩子]
+    S7 -->|钩子拒绝| ERR3[钩子拒绝]
+    S7 -->|钩子停止| STOP[中止执行]
+    S7 -->|通过| S8[8. 权限解析]
+    S8 --> S9{9. 权限被拒绝？}
+    S9 -->|是| ERR4[权限被拒绝结果]
+    S9 -->|否| S10[10. 工具执行]
+    S10 --> S11[11. 结果预算控制]
+    S11 --> S12[12. PostToolUse 钩子]
+    S12 --> S13[13. 新消息]
+    S13 --> S14[14. 错误处理]
+    S14 --> DONE[工具结果 → 对话历史]
 
-    S10 -->|Throws| S14
+    S10 -->|抛出异常| S14
 
     style ERR1 fill:#f66
     style ERR2 fill:#f66
@@ -155,154 +155,154 @@ graph TD
     style STOP fill:#f66
 ```
 
-### Steps 1-4: Validation
+### 步骤 1-4：验证
 
-**Tool Lookup** falls back to `getAllBaseTools()` for alias matches, handling transcripts from older sessions where a tool was renamed. **Abort Check** prevents wasted computation on tool calls queued before Ctrl+C propagated. **Zod Validation** catches type mismatches; for deferred tools, the error appends a hint to call ToolSearch first. **Semantic Validation** goes beyond schema conformance -- FileEditTool rejects no-op edits, BashTool blocks standalone `sleep` when MonitorTool is available.
+**工具查找**回退到 `getAllBaseTools()` 以进行别名匹配，处理来自旧会话（其中工具已被重命名）的转录内容。**中止检查**防止在 Ctrl+C 传播之前排队的工具调用上进行浪费的计算。**Zod 验证**捕获类型不匹配；对于延迟加载的工具，错误会附加一个首先调用 ToolSearch 的提示。**语义验证**超越了 schema 一致性——FileEditTool 拒绝无操作编辑，当 MonitorTool 可用时，BashTool 阻止独立的 `sleep` 命令。
 
-### Steps 5-6: Preparation
+### 步骤 5-6：准备
 
-**Speculative Classifier Start** kicks off the auto-mode security classifier in parallel for Bash commands, shaving hundreds of milliseconds off the common path. **Input Backfill** clones the parsed input and adds derived fields (expanding `~/foo.txt` to absolute paths) for hooks and permissions, preserving the original for transcript stability.
+**推测性分类器启动**并行启动 Bash 命令的自动模式安全分类器，在常见路径上节省数百毫秒。**输入回填**克隆解析后的输入并添加派生字段（将 `~/foo.txt` 扩展为绝对路径）以供钩子和权限使用，同时保留原始输入以保持转录稳定性。
 
-### Steps 7-9: Permission
+### 步骤 7-9：权限
 
-**PreToolUse Hooks** are the extension mechanism -- they can make permission decisions, modify inputs, inject context, or stop execution entirely. **Permission Resolution** bridges hooks and the general permission system: if a hook already decided, that is final; otherwise `canUseTool()` triggers rule matching, tool-specific checks, mode-based defaults, and interactive prompts. **Permission Denied Handling** builds an error message and executes `PermissionDenied` hooks.
+**PreToolUse 钩子**是扩展机制——它们可以做出权限决定、修改输入、注入上下文或完全停止执行。**权限解析**桥接钩子和通用权限系统：如果钩子已经做出决定，那就是最终决定；否则 `canUseTool()` 触发规则匹配、特定于工具的检查、基于模式的默认值和交互式提示。**权限拒绝处理**构建错误消息并执行 `PermissionDenied` 钩子。
 
-### Steps 10-14: Execution and Cleanup
+### 步骤 10-14：执行和清理
 
-**Tool Execution** runs the actual `call()` with the original input. **Result Budgeting** persists oversized output to `~/.claude/tool-results/{hash}.txt` and replaces it with a preview. **PostToolUse Hooks** can modify MCP output or block continuation. **New Messages** are appended (sub-agent transcripts, system reminders). **Error Handling** classifies errors for telemetry, extracts safe strings from potentially mangled names, and emits OTel events.
+**工具执行**使用原始输入运行实际的 `call()`。**结果预算控制**将过大的输出持久化到 `~/.claude/tool-results/{hash}.txt` 并用预览替换它。**PostToolUse 钩子**可以修改 MCP 输出或阻止继续。**新消息**被附加（子智能体转录内容、系统提醒）。**错误处理**对错误进行分类以用于遥测，从可能被篡改的名称中提取安全字符串，并发出 OTel 事件。
 
 ---
 
-## The Permission System
+## 权限系统
 
-### Seven Modes
+### 七种模式
 
-| Mode | Behavior |
+| 模式 | 行为 |
 |------|----------|
-| `default` | Tool-specific checks; prompt user for unrecognized operations |
-| `acceptEdits` | Auto-allow file edits; prompt for other operations |
-| `plan` | Read-only -- deny all write operations |
-| `dontAsk` | Auto-deny anything that would normally prompt (background agents) |
-| `bypassPermissions` | Allow everything without prompting |
-| `auto` | Use the transcript classifier to decide (feature-flagged) |
-| `bubble` | Internal mode for sub-agents that escalate to the parent |
+| `default` | 特定于工具的检查；提示用户未识别的操作 |
+| `acceptEdits` | 自动允许文件编辑；提示其他操作 |
+| `plan` | 只读——拒绝所有写入操作 |
+| `dontAsk` | 自动拒绝任何通常会提示的操作（后台智能体） |
+| `bypassPermissions` | 允许一切而不提示 |
+| `auto` | 使用转录分类器来决定（功能标志控制） |
+| `bubble` | 子智能体的内部模式，升级到父级 |
 
-### The Resolution Chain
+### 解析链
 
-When a tool call reaches permission resolution:
+当工具调用到达权限解析时：
 
-1. **Hook decision**: If a PreToolUse hook already returned `allow` or `deny`, that is final.
-2. **Rule matching**: Three rule sets -- `alwaysAllowRules`, `alwaysDenyRules`, `alwaysAskRules` -- match on tool name and optional content patterns. `Bash(git *)` matches any Bash command starting with `git`.
-3. **Tool-specific check**: The tool's `checkPermissions()` method. Most return `passthrough`.
-4. **Mode-based default**: `bypassPermissions` allows everything. `plan` denies writes. `dontAsk` denies prompts.
-5. **Interactive prompt**: In `default` and `acceptEdits` modes, unresolved decisions show a prompt.
-6. **Auto-mode classifier**: A two-stage classifier (fast model, then extended thinking for ambiguous cases).
+1. **钩子决定**：如果 PreToolUse 钩子已经返回 `allow` 或 `deny`，那就是最终决定。
+2. **规则匹配**：三个规则集——`alwaysAllowRules`、`alwaysDenyRules`、`alwaysAskRules`——匹配工具名称和可选的内容模式。`Bash(git *)` 匹配任何以 `git` 开头的 Bash 命令。
+3. **特定于工具的检查**：工具的 `checkPermissions()` 方法。大多数返回 `passthrough`。
+4. **基于模式的默认值**：`bypassPermissions` 允许一切。`plan` 拒绝写入。`dontAsk` 拒绝提示。
+5. **交互式提示**：在 `default` 和 `acceptEdits` 模式下，未解决的决策会显示提示。
+6. **自动模式分类器**：两阶段分类器（快速模型，然后是对模糊情况的扩展思考）。
 
-The `safetyCheck` variant has a `classifierApprovable` boolean: `.claude/` and `.git/` edits are `classifierApprovable: true` (unusual but sometimes legitimate), while Windows path bypass attempts are `classifierApprovable: false` (almost always adversarial).
+`safetyCheck` 变体有一个 `classifierApprovable` 布尔值：`.claude/` 和 `.git/` 编辑是 `classifierApprovable: true`（不寻常但有时合法），而 Windows 路径绕过尝试是 `classifierApprovable: false`（几乎总是对抗性的）。
 
-### Permission Rules and Matching
+### 权限规则和匹配
 
-Permission rules are stored as `PermissionRule` objects with three parts: a `source` tracing provenance (userSettings, projectSettings, localSettings, cliArg, policySettings, session, etc.), a `ruleBehavior` (allow, deny, ask), and a `ruleValue` with the tool name and optional content pattern.
+权限规则存储为 `PermissionRule` 对象，包含三个部分：追踪来源的 `source`（userSettings、projectSettings、localSettings、cliArg、policySettings、session 等）、`ruleBehavior`（allow、deny、ask）以及包含工具名称和可选内容模式的 `ruleValue`。
 
-The `ruleContent` field enables fine-grained matching. `Bash(git *)` allows any Bash command starting with `git`. `Edit(/src/**)` allows edits only within `/src`. `Fetch(domain:example.com)` allows fetching from a specific domain. Rules without `ruleContent` match all invocations of that tool.
+`ruleContent` 字段启用细粒度匹配。`Bash(git *)` 允许任何以 `git` 开头的 Bash 命令。`Edit(/src/**)` 仅允许在 `/src` 内进行编辑。`Fetch(domain:example.com)` 允许从特定域获取。没有 `ruleContent` 的规则匹配该工具的所有调用。
 
-BashTool's permission matcher parses the command via `parseForSecurity()` (a bash AST parser) and splits compound commands into subcommands. If AST parsing fails (complex syntax with heredocs or nested subshells), the matcher returns `() => true` -- fail-safe, meaning the hook always runs. The assumption is that if the command is too complex to parse, it is too complex to confidently exclude from safety checks.
+BashTool 的权限匹配器通过 `parseForSecurity()`（一个 bash AST 解析器）解析命令，并将复合命令拆分为子命令。如果 AST 解析失败（带有 heredocs 或嵌套子 shell 的复杂语法），匹配器返回 `() => true`——故障安全，意味着钩子始终运行。假设是，如果命令太复杂而无法解析，那么它也过于复杂，无法自信地从安全检查中排除。
 
-### Bubble Mode for Sub-Agents
+### 子智能体的 Bubble 模式
 
-Sub-agents in coordinator-worker patterns cannot show permission prompts -- they have no terminal. The `bubble` mode causes permission requests to propagate up to the parent context. The coordinator agent, running in the main thread with terminal access, handles the prompt and sends the decision back down.
-
----
-
-## Tool Deferred Loading
-
-Tools with `shouldDefer: true` are sent to the API with `defer_loading: true` -- names and descriptions but not full parameter schemas. This reduces initial prompt size. To use a deferred tool, the model must first call `ToolSearchTool` to load its schema. The failure mode is instructive: calling a deferred tool without loading it causes Zod validation to fail (all typed parameters arrive as strings), and the system appends a targeted recovery hint.
-
-Deferred loading also improves cache hit rates: tools sent with `defer_loading: true` contribute only their name to the prompt, so adding or removing a deferred MCP tool changes the prompt by a few tokens rather than hundreds.
+协调器-工作者模式中的子智能体无法显示权限提示——它们没有终端。`bubble` 模式导致权限请求向上传播到父上下文。在主线程中运行且具有终端访问权限的协调器智能体处理提示并将决策发送回下游。
 
 ---
 
-## Result Budgeting
+## 工具延迟加载
 
-### Per-Tool Size Limits
+具有 `shouldDefer: true` 的工具以 `defer_loading: true` 发送给 API——只有名称和描述，没有完整的参数 schema。这减少了初始提示的大小。要使用延迟加载的工具，模型必须首先调用 `ToolSearchTool` 来加载其 schema。故障模式具有启发性：在未加载的情况下调用延迟加载的工具会导致 Zod 验证失败（所有类型化参数都作为字符串到达），并且系统会附加一个有针对性的恢复提示。
 
-Each tool declares `maxResultSizeChars`:
+延迟加载还提高了缓存命中率：以 `defer_loading: true` 发送的工具仅将其名称贡献给提示，因此添加或删除延迟加载的 MCP 工具只会改变几个 token，而不是数百个。
 
-| Tool | maxResultSizeChars | Rationale |
+---
+
+## 结果预算控制
+
+### 每个工具的大小限制
+
+每个工具声明 `maxResultSizeChars`：
+
+| 工具 | maxResultSizeChars | 理由 |
 |------|-------------------|-----------|
-| BashTool | 30,000 | Enough for most useful output |
-| FileEditTool | 100,000 | Diffs can be large but the model needs them |
-| GrepTool | 100,000 | Search results with context lines add up fast |
-| FileReadTool | Infinity | Self-bounds via its own token limits; persisting would create circular Read loops |
+| BashTool | 30,000 | 足以满足大多数有用输出 |
+| FileEditTool | 100,000 | Diff 可能很大，但模型需要它们 |
+| GrepTool | 100,000 | 带有上下文行的搜索结果累积很快 |
+| FileReadTool | Infinity | 通过自身的 token 限制自我约束；持久化会造成循环 Read 循环 |
 
-When a result exceeds the threshold, the full content is saved to disk and replaced with a `<persisted-output>` wrapper containing a preview and file path. The model can then use `Read` to access the full output if needed.
+当结果超过阈值时，完整内容保存到磁盘，并被替换为包含预览和文件路径的 `<persisted-output>` 包装器。然后，模型可以根据需要使用 `Read` 访问完整输出。
 
-### Per-Conversation Aggregate Budget
+### 每次对话的聚合预算
 
-Beyond per-tool limits, `ContentReplacementState` tracks an aggregate budget across the entire conversation, preventing death by a thousand cuts -- many tools each returning 90% of their individual limit can still overwhelm the context window.
-
----
-
-## Individual Tool Highlights
-
-### BashTool: The Most Complex Tool
-
-BashTool is the system's most complex tool by far. It parses compound commands, classifies subcommands as read-only or write, manages background tasks, detects image output by magic bytes, and implements a sed simulation for safe edit previews.
-
-The compound command parsing is particularly interesting. `splitCommandWithOperators()` breaks a command like `cd /tmp && mkdir build && ls build` into individual subcommands. Each is classified against known-safe command sets (`BASH_SEARCH_COMMANDS`, `BASH_READ_COMMANDS`, `BASH_LIST_COMMANDS`). A compound command is read-only only if ALL non-neutral parts are safe. The neutral set (echo, printf) is ignored -- they do not make a command read-only, but they also do not make it write-only.
-
-The sed simulation (`_simulatedSedEdit`) deserves special attention. When a user approves a sed command in the permission dialog, the system pre-computes the result by running the sed command in a sandbox and capturing the output. The pre-computed result is injected into the input as `_simulatedSedEdit`. When `call()` executes, it applies the edit directly, bypassing shell execution. This guarantees that what the user previewed is exactly what gets written -- not a re-execution that might produce different results if the file changed between preview and execution.
-
-### FileEditTool: Staleness Detection
-
-FileEditTool integrates with `readFileState`, the LRU cache of file contents and timestamps maintained across the conversation. Before applying an edit, it checks whether the file has been modified since the model last read it. If the file is stale -- modified by a background process, another tool, or the user -- the edit is rejected with a message telling the model to re-read the file first.
-
-The fuzzy matching in `findActualString()` handles the common case where the model gets whitespace slightly wrong. It normalizes whitespace and quote styles before matching, so an edit targeting `old_string` with trailing spaces still matches the file's actual content. The `replace_all` flag enables bulk replacements; without it, non-unique matches are rejected, requiring the model to provide enough context to identify a single location.
-
-### FileReadTool: The Versatile Reader
-
-FileReadTool is the only built-in tool with `maxResultSizeChars: Infinity`. If Read output were persisted to disk, the model would need to Read the persisted file, which could itself exceed the limit, creating an infinite loop. The tool instead self-bounds via token estimation and truncates at the source.
-
-The tool is remarkably versatile: it reads text files with line numbers, images (returning base64 multimodal content blocks), PDFs (via `extractPDFPages()`), Jupyter notebooks (via `readNotebook()`), and directories (falling back to `ls`). It blocks dangerous device paths (`/dev/zero`, `/dev/random`, `/dev/stdin`) and handles macOS screenshot filename quirks (U+202F narrow no-break space vs regular space in "Screen Shot" filenames).
-
-### GrepTool: Pagination via head_limit
-
-GrepTool wraps `ripGrep()` and adds a pagination mechanism via `head_limit`. The default is 250 entries -- enough for useful results but small enough to avoid context bloat. When truncation occurs, the response includes `appliedLimit: 250`, signaling the model to use `offset` on the next call to paginate. An explicit `head_limit: 0` disables the limit entirely.
-
-GrepTool automatically excludes six VCS directories (`.git`, `.svn`, `.hg`, `.bzr`, `.jj`, `.sl`). Searching inside `.git/objects` is almost never what the model wants, and accidental inclusion of binary pack files would blow through token budgets.
-
-### AgentTool and Context Modifiers
-
-AgentTool spawns sub-agents that run their own query loops. Its `call()` returns `newMessages` containing the sub-agent's transcript, and optionally a `contextModifier` that propagates state changes back to the parent. Because AgentTool is not concurrency-safe by default, multiple Agent tool calls in a single response run serially -- each sub-agent's context modifier is applied before the next sub-agent starts. In coordinator mode, the pattern inverts: the coordinator dispatches sub-agents for independent tasks, and the `isAgentSwarmsEnabled()` check unlocks parallel agent execution.
+除了每个工具的限制之外，`ContentReplacementState` 还会跟踪整个对话中的聚合预算，防止千刀万剐（death by a thousand cuts）——许多工具各自返回其单独限制的90%仍然可能压垮上下文窗口。
 
 ---
 
-## How Tools Interact with the Message History
+## 个别工具亮点
 
-Tool results do not simply return data to the model. They participate in the conversation as structured messages.
+### BashTool：最复杂的工具
 
-The API expects tool results as `ToolResultBlockParam` objects that reference the original `tool_use` block by ID. Most tools serialize to text. FileReadTool can serialize to image content blocks (base64-encoded) for multimodal responses. BashTool detects image output by inspecting magic bytes in stdout and switches to image blocks accordingly.
+BashTool 无疑是系统中最复杂的工具。它解析复合命令，将子命令分类为只读或写入，管理后台任务，通过魔术字节检测图像输出，并实现 sed 模拟以进行安全的编辑预览。
 
-`ToolResult.newMessages` is how tools extend the conversation beyond the simple call-and-response pattern. **Agent transcripts**: AgentTool injects the sub-agent's message history as attachment messages. **System reminders**: Memory tools inject system messages that appear after the tool result -- visible to the model on the next turn but stripped at the `normalizeMessagesForAPI` boundary. **Attachment messages**: Hook results, additional context, and error details carry structured metadata that the model can reference in subsequent turns.
+复合命令解析特别有趣。`splitCommandWithOperators()` 将类似 `cd /tmp && mkdir build && ls build` 的命令分解为单独的子命令。每个子命令都针对已知安全命令集（`BASH_SEARCH_COMMANDS`、`BASH_READ_COMMANDS`、`BASH_LIST_COMMANDS`）进行分类。仅当所有非中性部分都是安全的时，复合命令才是只读的。中性集（echo、printf）被忽略——它们不会使命令变为只读，但也不会使其变为只写。
 
-The `contextModifier` function is the mechanism for tools that change the execution environment. When `EnterPlanMode` executes, it returns a modifier that sets the permission mode to `'plan'`. When `ExitWorktree` executes, it modifies the working directory. These modifiers are the only way for a tool to affect subsequent tools -- direct mutation of `ToolUseContext` is not possible because the context is spread-copied before each tool call. The serial-only restriction is enforced by the orchestration layer: if two concurrent tools both modify the working directory, which wins?
+sed 模拟（`_simulatedSedEdit`）值得特别关注。当用户在权限对话框中批准 sed 命令时，系统通过在沙箱中运行 sed 命令并捕获输出来预计算结果。预计算的结果作为 `_simulatedSedEdit` 注入到输入中。当 `call()` 执行时，它直接应用编辑，绕过 shell 执行。这保证了用户预览的内容与写入的内容完全一致——而不是可能在预览和执行之间因文件更改而产生不同结果的重新执行。
+
+### FileEditTool：陈旧性检测
+
+FileEditTool 与 `readFileState` 集成，`readFileState` 是对话期间维护的文件内容和时间戳的 LRU 缓存。在应用编辑之前，它会检查文件自模型上次读取以来是否已被修改。如果文件已过期（stale）——由后台进程、另一个工具或用户修改——编辑将被拒绝，并附带一条消息，告诉模型首先重新读取文件。
+
+`findActualString()` 中的模糊匹配处理了模型在空格上稍有错误的常见情况。它在匹配之前规范化空格和引号样式，因此针对带有尾随空格的 `old_string` 的编辑仍然可以匹配文件的实际内容。`replace_all` 标志启用批量替换；如果没有它，非唯一匹配将被拒绝，要求模型提供足够的上下文以识别单个位置。
+
+### FileReadTool：多功能阅读器
+
+FileReadTool 是唯一具有 `maxResultSizeChars: Infinity` 的内置工具。如果 Read 输出被持久化到磁盘，模型将需要 Read 持久化文件，而这本身可能会超出限制，从而造成无限循环。该工具改为通过 token 估算进行自我约束，并在源头截断。
+
+该工具非常通用：它读取带行号的文本文件、图像（返回 base64 多模态内容块）、PDF（通过 `extractPDFPages()`）、Jupyter notebook（通过 `readNotebook()`）和目录（回退到 `ls`）。它阻止危险的设备路径（`/dev/zero`、`/dev/random`、`/dev/stdin`）并处理 macOS 截图文件名怪癖（“Screen Shot”文件名中的 U+202F 窄不换行空格与普通空格）。
+
+### GrepTool：通过 head_limit 分页
+
+GrepTool 包装 `ripGrep()` 并通过 `head_limit` 添加分页机制。默认值为250条条目——足以提供有用的结果，但又足够小以避免上下文膨胀。当发生截断时，响应包括 `appliedLimit: 250`，向模型发出信号以在下一次调用中使用 `offset` 进行分页。显式的 `head_limit: 0` 完全禁用限制。
+
+GrepTool 自动排除六个 VCS 目录（`.git`、`.svn`、`.hg`、`.bzr`、`.jj`、`.sl`）。在 `.git/objects` 内搜索几乎从来都不是模型想要的，意外包含二进制包文件会耗尽 token 预算。
+
+### AgentTool 和上下文修饰符
+
+AgentTool 生成运行自己查询循环的子智能体。其 `call()` 返回包含子智能体转录内容的 `newMessages`，以及可选的将状态更改传播回父级的 `contextModifier`。由于 AgentTool 默认情况下不是并发安全的，单个响应中的多个 Agent 工具调用串行运行——每个子智能体的上下文修饰符在下一个子智能体启动之前应用。在协调器模式下，模式反转：协调器为独立任务分派子智能体，并且 `isAgentSwarmsEnabled()` 检查解锁并行智能体执行。
 
 ---
 
-## Apply This: Designing a Tool System
+## 工具如何与消息历史交互
 
-**Fail-closed defaults.** New tools should be conservative until explicitly marked otherwise. A developer who forgets to set a flag gets the safe behavior, not the dangerous one.
+工具结果不仅仅是将数据返回给模型。它们作为结构化消息参与对话。
 
-**Input-dependent safety.** `isConcurrencySafe(input)` and `isReadOnly(input)` take the parsed input because the same tool at different inputs has different safety profiles. A tool registry that marks BashTool as "always serial" is correct but wasteful.
+API 期望工具结果作为引用原始 `tool_use` 块 ID 的 `ToolResultBlockParam` 对象。大多数工具序列化为文本。FileReadTool 可以序列化为图像内容块（base64编码）以进行多模态响应。BashTool 通过检查 stdout 中的魔术字节来检测图像输出，并相应地切换到图像块。
 
-**Layer your permissions.** Tool-specific checks, rule-based matching, mode-based defaults, interactive prompts, and automated classifiers each handle different cases. No single mechanism is sufficient.
+`ToolResult.newMessages` 是工具超越简单的调用-响应模式扩展对话的方式。**智能体转录内容**：AgentTool 将子智能体的消息历史作为附件消息注入。**系统提醒**：内存工具注入出现在工具结果之后的系统消息——在下一轮对模型可见，但在 `normalizeMessagesForAPI` 边界处被剥离。**附件消息**：钩子结果、附加上下文和错误细节携带结构化元数据，模型可以在后续轮次中引用。
 
-**Budget results, not just inputs.** Token limits on input are standard. But tool results can be arbitrarily large and they accumulate across turns. Per-tool limits prevent individual explosions. Aggregate conversation limits prevent cumulative overflow.
-
-**Make error classification telemetry-safe.** In minified builds, `error.constructor.name` is mangled. The `classifyToolError()` function extracts the most informative safe string available -- telemetry-safe messages, errno codes, stable error names -- without ever logging the raw error message to analytics.
+`contextModifier` 函数是改变执行环境的工具的机制。当 `EnterPlanMode` 执行时，它返回一个将权限模式设置为 `'plan'` 的修饰符。当 `ExitWorktree` 执行时，它修改工作目录。这些修饰符是工具影响后续工具的唯一方式——直接突变 `ToolUseContext` 是不可能的，因为上下文在每次工具调用之前都被 spread-copy（展开复制）。串行限制由编排层强制执行：如果两个并发工具都修改工作目录，哪个获胜？
 
 ---
 
-## What Comes Next
+## 应用此知识：设计工具系统
 
-This chapter traced how a single tool call flows from definition through validation, permission, execution, and result budgeting. But the model rarely requests just one tool at a time. How tools are orchestrated into concurrent batches is the subject of Chapter 7.
+**故障关闭默认值。** 新工具在被明确标记为其他状态之前应该是保守的。忘记设置标志的开发人员会得到安全的行为，而不是危险的行为。
+
+**依赖于输入的安全性。** `isConcurrencySafe(input)` 和 `isReadOnly(input)` 接收解析后的输入，因为同一工具在不同输入下具有不同的安全配置文件。将 BashTool 标记为“始终串行”的工具注册表是正确的，但是浪费的。
+
+**分层你的权限。** 特定于工具的检查、基于规则的匹配、基于模式的默认值、交互式提示和自动分类器各自处理不同的情况。没有任何单一机制是足够的。
+
+**预算结果，而不仅仅是输入。** 输入的 token 限制是标准的。但是工具结果可以任意大，并且它们会在各轮次中累积。每个工具的限制防止个体爆炸。聚合对话限制防止累积溢出。
+
+**使错误分类对遥测安全。** 在最小化构建中，`error.constructor.name` 会被篡改。`classifyToolError()` 函数提取可用的最具信息量的安全字符串——遥测安全消息、errno 代码、稳定的错误名称——而永远不会将原始错误消息记录到分析中。
+
+---
+
+## 接下来是什么
+
+本章追溯了单个工具调用如何从定义流经验证、权限、执行和结果预算控制。但是，模型很少一次只请求一个工具。如何将工具编排成并发批处理是第7章的主题。

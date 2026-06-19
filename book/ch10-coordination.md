@@ -1,36 +1,36 @@
-# Chapter 10: Tasks, Coordination, and Swarms
+# 第10章：任务、协调与集群
 
-## The Limits of a Single Thread
+## 单线程的局限
 
-Chapter 8 showed how to create a sub-agent -- the fifteen-step lifecycle that builds an isolated execution context from an agent definition. Chapter 9 showed how to make parallel spawns economical through prompt cache exploitation. But creating agents and managing agents are different problems. This chapter addresses the second.
+第8章展示了如何创建子智能体（sub-agent）——即通过十五步生命周期从智能体定义构建隔离执行上下文的过程。第9章展示了如何利用提示缓存（prompt cache）使并行生成变得经济高效。然而，创建智能体与管理智能体是两个不同的问题。本章将探讨后者。
 
-A single agent loop -- one model, one conversation, one tool at a time -- can accomplish a remarkable amount of work. It can read files, edit code, run tests, search the web, and reason about complex problems. But it hits a ceiling.
+单个智能体循环——一个模型、一次对话、一次调用一个工具——能够完成惊人的工作量。它可以读取文件、编辑代码、运行测试、搜索网络以及对复杂问题进行推理。但它会遇到天花板。
 
-The ceiling is not intelligence. It is parallelism and scope. A developer working on a large refactoring needs to update 40 files, run tests after each batch, and verify nothing broke. A codebase migration touches frontend, backend, and database layers simultaneously. A thorough code review reads dozens of files while running the test suite in the background. These are not harder problems -- they are wider ones. They require the ability to do multiple things at once, to delegate work to specialists, and to coordinate the results.
+这个天花板并非智力上限，而是并行性和作用域的限制。一名开发者在进行大规模重构时，需要更新40个文件，在每批更新后运行测试，并验证没有破坏任何功能。代码库迁移会同时触及前端、后端和数据库层。全面的代码审查需要在后台运行测试套件的同时阅读数十个文件。这些并不是更难的问题——而是更宽泛的问题。它们要求具备同时处理多项任务的能力，能够将工作委派给专家，并协调各方结果。
 
-Claude Code's answer to this problem is not one mechanism but a layered stack of orchestration patterns, each suited to a different shape of work. Background tasks for fire-and-forget commands. Coordinator mode for manager-worker hierarchies. Swarm teams for peer-to-peer collaboration. And a unified communication protocol that ties them all together.
+Claude Code 针对这一问题的解决方案并非单一机制，而是一套分层的编排模式栈，每种模式适用于不同形态的工作。后台任务用于“触发后即忘”（fire-and-forget）的命令。协调器模式（Coordinator mode）用于管理者-工作者层级结构。集群团队（Swarm teams）用于点对点协作。此外还有一个统一的通信协议将它们紧密联系在一起。
 
-The orchestration layer spans approximately 40 files across `tools/AgentTool/`, `tasks/`, `coordinator/`, `tools/SendMessageTool/`, and `utils/swarm/`. Despite this breadth, the design is anchored by a single state machine that all patterns share. Understanding that state machine -- the `Task` abstraction in `Task.ts` -- is the prerequisite for understanding everything else.
+编排层大约跨越40个文件，分布在 `tools/AgentTool/`、`tasks/`、`coordinator/`、`tools/SendMessageTool/` 和 `utils/swarm/` 中。尽管范围广泛，但其设计锚定于所有模式共享的一个状态机。理解该状态机——即 `Task.ts` 中的 `Task` 抽象——是理解其他一切的前提。
 
-This chapter traces the full stack, from the foundational task state machine up through the most sophisticated multi-agent topologies.
+本章将从基础的任务状态机开始，一直追踪到最复杂的多智能体拓扑结构。
 
 ---
 
-## The Task State Machine
+## 任务状态机
 
-Every background operation in Claude Code -- a shell command, a sub-agent, a remote session, a workflow script -- is tracked as a *task*. The task abstraction lives in `Task.ts` and provides the unified state model that the rest of the orchestration layer builds on.
+Claude Code 中的每一个后台操作——shell 命令、子智能体、远程会话、工作流脚本——都被作为一个*任务*进行跟踪。任务抽象位于 `Task.ts` 中，提供了统一的状态模型，编排层的其余部分均构建于此之上。
 
-### Seven Types
+### 七种类型
 
-The system defines seven task types, each representing a different execution model:
+系统定义了七种任务类型，每种代表不同的执行模型：
 
-The seven task types are: `local_bash` (background shell commands), `local_agent` (background sub-agents), `remote_agent` (remote sessions), `in_process_teammate` (swarm teammates), `local_workflow` (workflow script executions), `monitor_mcp` (MCP server monitors), and `dream` (speculative background thinking).
+这七种任务类型为：`local_bash`（后台 shell 命令）、`local_agent`（后台子智能体）、`remote_agent`（远程会话）、`in_process_teammate`（集群队友）、`local_workflow`（工作流脚本执行）、`monitor_mcp`（MCP 服务器监控）以及 `dream`（推测性后台思考）。
 
-`local_bash` and `local_agent` are the workhorses -- background shell commands and background sub-agents, respectively. `in_process_teammate` is the swarm primitive. `remote_agent` bridges to remote Claude Code Runtime environments. `local_workflow` runs multi-step scripts. `monitor_mcp` watches MCP server health. `dream` is the most unusual -- a background task that lets the agent think speculatively while waiting for user input.
+`local_bash` 和 `local_agent` 是主力军——分别对应后台 shell 命令和后台子智能体。`in_process_teammate` 是集群原语。`remote_agent` 桥接到远程 Claude Code Runtime 环境。`local_workflow` 运行多步骤脚本。`monitor_mcp` 监视 MCP 服务器的健康状况。`dream` 最为特殊——它是一种后台任务，允许智能体在等待用户输入时进行推测性思考。
 
-Each type gets a single-character ID prefix for instant visual identification:
+每种类型都有一个单字符 ID 前缀，便于即时视觉识别：
 
-| Type | Prefix | Example ID |
+| 类型 | 前缀 | 示例 ID |
 |------|--------|------------|
 | `local_bash` | `b` | `b4k2m8x1` |
 | `local_agent` | `a` | `a7j3n9p2` |
@@ -40,13 +40,13 @@ Each type gets a single-character ID prefix for instant visual identification:
 | `monitor_mcp` | `m` | `m2g7k1z8` |
 | `dream` | `d` | `d5b4n3r6` |
 
-Task IDs use a single-character prefix (a for agents, b for bash, t for teammates, etc.) followed by 8 random alphanumeric characters drawn from a case-insensitive-safe alphabet (digits plus lowercase letters). This yields approximately 2.8 trillion combinations -- enough to resist brute-force symlink attacks against the task output files on disk.
+任务 ID 使用单字符前缀（a 代表智能体，b 代表 bash，t 代表队友等），后跟8个随机字母数字字符，这些字符取自大小写不敏感的安全字母表（数字加小写字母）。这产生了大约2.8万亿种组合——足以抵御针对磁盘上任务输出文件的暴力符号链接攻击。
 
-When you see `a7j3n9p2` in a log line, you know immediately it is a background agent. When you see `b4k2m8x1`, a shell command. The prefix is a micro-optimization for human readers, but in a system that can have dozens of concurrent tasks, it matters.
+当你在日志行中看到 `a7j3n9p2` 时，你立刻知道这是一个后台智能体。看到 `b4k2m8x1` 时，则是一个 shell 命令。这个前缀是对人类读者的微优化，但在一个可能拥有数十个并发任务的系统中，它至关重要。
 
-### Five Statuses
+### 五种状态
 
-The lifecycle is a simple directed graph with no cycles:
+生命周期是一个简单的无环有向图：
 
 ```mermaid
 stateDiagram-v2
@@ -56,7 +56,7 @@ stateDiagram-v2
     running --> killed: abort / user stop
 ```
 
-`pending` is the brief state between registration and first execution. `running` means the task is actively doing work. The three terminal states are `completed` (success), `failed` (error), and `killed` (explicitly stopped by the user, the coordinator, or an abort signal). A helper function guards against interacting with dead tasks:
+`pending` 是注册与首次执行之间的短暂状态。`running` 表示任务正在积极工作。三个终态分别为 `completed`（成功）、`failed`（错误）和 `killed`（被用户、协调器或中止信号显式停止）。一个辅助函数可防止与已终止的任务交互：
 
 ```typescript
 export function isTerminalTaskStatus(status: TaskStatus): boolean {
@@ -64,33 +64,33 @@ export function isTerminalTaskStatus(status: TaskStatus): boolean {
 }
 ```
 
-This function appears everywhere -- in message injection guards, eviction logic, orphan cleanup, and the SendMessage routing that decides whether to queue a message or resume a dead agent.
+该函数随处可见——在消息注入保护、驱逐逻辑、孤儿清理以及决定是排队消息还是恢复已终止智能体的 SendMessage 路由中。
 
-### The Base State
+### 基础状态
 
-Every task state extends `TaskStateBase`, which carries the fields that all seven types share:
+每个任务状态都扩展自 `TaskStateBase`，其中包含所有七种类型共享的字段：
 
 ```typescript
 export type TaskStateBase = {
-  id: string              // Prefixed random ID
-  type: TaskType          // Discriminator
-  status: TaskStatus      // Current lifecycle position
-  description: string     // Human-readable summary
-  toolUseId?: string      // The tool_use block that spawned this task
-  startTime: number       // Creation timestamp
-  endTime?: number        // Terminal-state timestamp
-  totalPausedMs?: number  // Accumulated pause time
-  outputFile: string      // Disk path for streaming output
-  outputOffset: number    // Read cursor for incremental output
-  notified: boolean       // Whether completion was reported to parent
+  id: string              // 带前缀的随机 ID
+  type: TaskType          // 判别符
+  status: TaskStatus      // 当前生命周期位置
+  description: string     // 人类可读的摘要
+  toolUseId?: string      // 生成此任务的 tool_use 块
+  startTime: number       // 创建时间戳
+  endTime?: number        // 终态时间戳
+  totalPausedMs?: number  // 累计暂停时间
+  outputFile: string      // 流式输出的磁盘路径
+  outputOffset: number    // 增量输出的读取游标
+  notified: boolean       // 是否已向父级报告完成
 }
 ```
 
-Two fields deserve attention. `outputFile` is the bridge between async execution and the parent's conversation -- every task writes its output to a file on disk, and the parent can read it incrementally via `outputOffset`. `notified` prevents duplicate completion messages; once the parent has been told a task finished, the flag flips to `true` and the notification is never sent again. Without this guard, a task that completes between two consecutive polls of the notification queue would generate duplicate notifications, confusing the model into thinking two tasks finished when only one did.
+有两个字段值得关注。`outputFile` 是异步执行与父级对话之间的桥梁——每个任务将其输出写入磁盘文件，父级可以通过 `outputOffset` 增量读取。`notified` 防止重复的完成消息；一旦父级被告知任务已完成，该标志就会翻转为 `true`，通知永远不会再次发送。如果没有这个保护，在两次连续轮询通知队列之间完成的任务会产生重复通知，导致模型误以为有两个任务完成，而实际上只有一个。
 
-### The Agent Task State
+### 智能体任务状态
 
-`LocalAgentTaskState` is the most complex variant, carrying everything needed to manage a background sub-agent's full lifecycle:
+`LocalAgentTaskState` 是最复杂的变体，承载了管理后台子智能体完整生命周期所需的一切：
 
 ```typescript
 export type LocalAgentTaskState = TaskStateBase & {
@@ -101,25 +101,25 @@ export type LocalAgentTaskState = TaskStateBase & {
   agentType: string
   model?: string
   abortController?: AbortController
-  pendingMessages: string[]       // Queued via SendMessage
-  isBackgrounded: boolean         // Was this originally a foreground agent?
-  retain: boolean                 // UI is holding this task
-  diskLoaded: boolean             // Sidechain transcript loaded
-  evictAfter?: number             // GC deadline
+  pendingMessages: string[]       // 通过 SendMessage 排队
+  isBackgrounded: boolean         // 最初是否为前台智能体？
+  retain: boolean                 // UI 是否保留此任务
+  diskLoaded: boolean             // 侧链转录记录已加载
+  evictAfter?: number             // GC 截止时间
   progress?: AgentProgress
   lastReportedToolCount: number
   lastReportedTokenCount: number
-  // ... additional lifecycle fields
+  // ... 其他生命周期字段
 }
 ```
 
-Three fields reveal important design decisions. `pendingMessages` is the inbox -- when `SendMessage` targets a running agent, the message is queued here rather than injected immediately. Messages are drained at tool-round boundaries, which preserves the agent's turn structure. `isBackgrounded` distinguishes agents that were born async from those that started as foreground sync agents and were later backgrounded by the user pressing a key. `evictAfter` is a garbage collection mechanism: non-retained completed tasks get a grace period before their state is purged from memory.
+三个字段揭示了重要的设计决策。`pendingMessages` 是收件箱——当 `SendMessage` 指向一个正在运行的智能体时，消息会在此处排队，而不是立即注入。消息在工具轮次边界被排空，这保留了智能体的回合结构。`isBackgrounded` 区分了天生异步的智能体与那些最初作为前台同步智能体启动、后来因用户按键而被转入后台的智能体。`evictAfter` 是一种垃圾回收机制：未被保留的已完成任务在被从内存中清除之前会有一个宽限期。
 
-All task states are stored in `AppState.tasks` as a `Record<string, TaskState>`, keyed by the prefixed ID. This is a flat map, not a tree -- the system does not model parent-child relationships in the state store. The parent-child relationship is implicit in the conversation flow: the parent holds the `toolUseId` that spawned the child.
+所有任务状态都以带前缀的 ID 为键，作为 `Record<string, TaskState>` 存储在 `AppState.tasks` 中。这是一个扁平映射，而非树形结构——系统不在状态存储中对父子关系建模。父子关系隐含在对话流中：父级持有生成子级的 `toolUseId`。
 
-### The Task Registry
+### 任务注册表
 
-Each task type is backed by a `Task` object with a minimal interface:
+每种任务类型都由一个具有最小接口的 `Task` 对象支持：
 
 ```typescript
 export type Task = {
@@ -129,7 +129,7 @@ export type Task = {
 }
 ```
 
-The registry collects all task implementations:
+注册表收集所有任务实现：
 
 ```typescript
 export function getAllTasks(): Task[] {
@@ -144,19 +144,19 @@ export function getAllTasks(): Task[] {
 }
 ```
 
-Notice the conditional inclusion -- `LocalWorkflowTask` and `MonitorMcpTask` are feature-gated and may not exist at runtime. The `Task` interface is deliberately minimal. Earlier iterations included `spawn()` and `render()` methods, but these were removed when it became clear that spawning and rendering were never called polymorphically. Each task type has its own spawn logic, its own state management, and its own rendering. The only operation that genuinely needs to dispatch by type is `kill()`, and so that is all the interface requires.
+注意条件包含——`LocalWorkflowTask` 和 `MonitorMcpTask` 受特性门控（feature-gated），运行时可能不存在。`Task` 接口刻意保持极简。早期版本包含 `spawn()` 和 `render()` 方法，但当明确生成和渲染从未被多态调用时，这些方法被移除了。每种任务类型都有自己的生成逻辑、状态管理和渲染方式。唯一真正需要按类型分发的操作是 `kill()`，因此这也是接口所要求的唯一内容。
 
-This is an example of interface evolution through subtraction. The initial design imagined that all task types would share a common lifecycle interface. In practice, the types diverged enough that the shared interface became a fiction -- `spawn()` for a shell command and `spawn()` for an in-process teammate have almost nothing in common. Rather than maintain a leaky abstraction, the team removed everything except the one method that actually benefits from polymorphism.
+这是通过减法进行接口演进的一个例子。最初的设计设想所有任务类型共享一个通用的生命周期接口。在实践中，各类型差异足够大，以至于共享接口变成了一种虚构——shell 命令的 `spawn()` 与进程内队友的 `spawn()` 几乎没有共同点。与其维护一个有漏洞的抽象，团队选择移除除真正受益于多态的那个方法之外的所有内容。
 
 ---
 
-## Communication Patterns
+## 通信模式
 
-A task that runs in the background is only useful if the parent can observe its progress and receive its results. Claude Code supports three communication channels, each optimized for a different access pattern.
+只有当父级能够观察进度并接收结果时，后台运行的任务才有用。Claude Code 支持三种通信通道，每种都针对不同的访问模式进行了优化。
 
-### Foreground: The Generator Chain
+### 前台：生成器链
 
-When an agent runs synchronously, the parent iterates its `runAgent()` async generator directly, yielding each message back up the call stack. The interesting mechanism here is the background escape hatch -- the sync loop races between "next message from agent" and "background signal":
+当智能体同步运行时，父级直接迭代其 `runAgent()` 异步生成器，将每条消息沿调用栈向上产出。这里有趣的机制是后台逃生口——同步循环在“来自智能体的下一条消息”与“后台信号”之间竞速：
 
 ```typescript
 const agentIterator = runAgent({ ...params })[Symbol.asyncIterator]()
@@ -168,7 +168,7 @@ while (true) {
     : { type: 'message', result: await nextMessagePromise }
 
   if (raceResult.type === 'background') {
-    // User triggered backgrounding -- transition to async
+    // 用户触发了后台化 -- 转换为异步
     await agentIterator.return(undefined)
     void runAgent({ ...params, isAsync: true })
     return { data: { status: 'async_launched' } }
@@ -178,15 +178,15 @@ while (true) {
 }
 ```
 
-If the user decides mid-execution that a sync agent should become a background task, the foreground iterator is cleanly returned (triggering its `finally` block for resource cleanup), and the agent is re-spawned as an async task with the same ID. The transition is seamless -- no work is lost, and the agent continues from where it left off with an async abort controller that is unlinked from the parent's ESC key.
+如果用户在执行过程中决定将同步智能体转为后台任务，前台迭代器会被干净地返回（触发其 `finally` 块以进行资源清理），然后智能体以相同的 ID 重新生成为异步任务。这种转换是无缝的——不会丢失任何工作，智能体从断点处继续执行，并使用一个与父级 ESC 键解耦的异步中止控制器。
 
-This is a genuinely difficult state transition to get right. The foreground agent shares the parent's abort controller (ESC kills both). The background agent needs its own controller (ESC should not kill it). The agent's messages need to transfer from the foreground generator stream to the background notification system. The task state needs to flip `isBackgrounded` so the UI knows to show it in the background panel. And all of this must happen atomically -- no messages lost in the transition, no zombie iterators left running. The `Promise.race` between the next message and the background signal is the mechanism that makes this possible.
+这是一个极难正确处理的状态转换。前台智能体共享父级的中止控制器（ESC 会终止两者）。后台智能体需要自己的控制器（ESC 不应终止它）。智能体的消息需要从前端生成器流转移到后台通知系统。任务状态需要翻转 `isBackgrounded`，以便 UI 知道在后台面板中显示它。所有这些都必须原子性地发生——转换过程中不能丢失消息，也不能留下僵尸迭代器继续运行。下一条消息与后台信号之间的 `Promise.race` 正是实现这一点的机制。
 
-### Background: Three Channels
+### 后台：三种通道
 
-Background agents communicate through disk, notifications, and queued messages.
+后台智能体通过磁盘、通知和消息队列进行通信。
 
-**Disk output files.** Every task writes to an `outputFile` path -- a symlink to the agent's transcript in JSONL format. The parent (or any observer) can read this file incrementally using `outputOffset`, which tracks how far into the file has been consumed. The `TaskOutputTool` exposes this to the model:
+**磁盘输出文件。** 每个任务都会写入一个 `outputFile` 路径——这是一个指向智能体 JSONL 格式转录记录的符号链接。父级（或任何观察者）可以使用 `outputOffset` 增量读取此文件，该偏移量跟踪文件中已被消费的位置。`TaskOutputTool` 将此暴露给模型：
 
 ```typescript
 inputSchema = z.strictObject({
@@ -196,9 +196,9 @@ inputSchema = z.strictObject({
 })
 ```
 
-When `block: true`, the tool polls until the task reaches a terminal state or the timeout expires. This is the primary mechanism for a coordinator that spawns a worker and waits for its result.
+当 `block: true` 时，工具会轮询直到任务达到终态或超时过期。这是协调器生成工作者并等待其结果的主要机制。
 
-**Task notifications.** When a background agent completes, the system generates an XML notification and enqueues it for delivery into the parent's conversation:
+**任务通知。** 当后台智能体完成时，系统会生成 XML 通知并将其排入父级对话的传递队列：
 
 ```xml
 <task-notification>
@@ -216,9 +216,9 @@ When `block: true`, the tool polls until the task reaches a terminal state or th
 </task-notification>
 ```
 
-The notification is injected as a user-role message in the parent's conversation, which means the model sees it in its normal message flow. It does not need a special tool to check for completions -- they arrive as context. The `notified` flag on the task state prevents duplicate delivery.
+通知作为用户角色消息注入父级对话，这意味着模型在其正常消息流中看到它。不需要特殊工具来检查完成情况——它们作为上下文到达。任务状态上的 `notified` 标志防止重复传递。
 
-**Command queue.** The `pendingMessages` array on `LocalAgentTaskState` is the third channel. When `SendMessage` targets a running agent, the message is queued:
+**命令队列。** `LocalAgentTaskState` 上的 `pendingMessages` 数组是第三种通道。当 `SendMessage` 指向运行中的智能体时，消息被排队：
 
 ```typescript
 if (isLocalAgentTask(task) && task.status === 'running') {
@@ -227,44 +227,44 @@ if (isLocalAgentTask(task) && task.status === 'running') {
 }
 ```
 
-These messages are drained at tool-round boundaries by `drainPendingMessages()` and injected as user messages into the agent's conversation. This is a crucial design choice -- messages arrive between tool rounds, not mid-execution. The agent finishes its current thought, then receives the new information. No race conditions, no corrupted state.
+这些消息在工具轮次边界由 `drainPendingMessages()` 排空，并作为用户消息注入智能体的对话。这是一个关键的设计选择——消息在工具轮次之间到达，而不是在执行中途。智能体完成当前思考后才接收新信息。没有竞态条件，没有损坏的状态。
 
-### Progress Tracking
+### 进度跟踪
 
-The `ProgressTracker` provides real-time visibility into agent activity:
+`ProgressTracker` 提供对智能体活动的实时可见性：
 
 ```typescript
 export type ProgressTracker = {
   toolUseCount: number
-  latestInputTokens: number        // Cumulative (latest value, not sum)
-  cumulativeOutputTokens: number   // Summed across turns
-  recentActivities: ToolActivity[] // Last 5 tool uses
+  latestInputTokens: number        // 累计值（最新值，非总和）
+  cumulativeOutputTokens: number   // 跨轮次求和
+  recentActivities: ToolActivity[] // 最近5次工具使用
 }
 ```
 
-The distinction between input and output token tracking is deliberate and reflects a subtlety of the API's billing model. Input tokens are cumulative per API call because the full conversation is re-sent each time -- the 15th turn includes all 14 previous turns, so the input token count reported by the API already reflects the total. Keeping the latest value is the correct aggregation. Output tokens are per-turn -- the model generates new tokens each time -- so summing is the correct aggregation. Getting this wrong would either dramatically overcount (summing cumulative input tokens) or dramatically undercount (keeping only the latest output tokens).
+输入和输出 token 跟踪的区别是刻意的，反映了 API 计费模型的微妙之处。输入 token 是按 API 调用累计的，因为每次都会重新发送完整对话——第15轮包含了前14轮的所有内容，因此 API 报告的输入 token 数已经反映了总量。保留最新值是正确的聚合方式。输出 token 是按轮次的——模型每次都生成新 token——因此求和是正确的聚合方式。弄错这一点会导致严重的高估（对累计输入 token 求和）或严重的低估（仅保留最新的输出 token）。
 
-The `recentActivities` array (capped at 5 entries) provides a human-readable stream of what the agent is doing: "Read src/auth/validate.ts", "Bash: npm test", "Edit src/auth/validate.ts". This appears in the VS Code subagent panel and the terminal's background task indicator, giving users visibility into agent work without requiring them to read full transcripts.
+`recentActivities` 数组（上限为5条）提供了人类可读的智能体活动流：“Read src/auth/validate.ts”、“Bash: npm test”、“Edit src/auth/validate.ts”。这显示在 VS Code 子智能体面板和终端的后台任务指示器中，让用户无需阅读完整转录记录即可了解智能体的工作情况。
 
-For background agents, progress is written to `AppState` via `updateAsyncAgentProgress()` and emitted as SDK events via `emitTaskProgress()`. The VS Code subagent panel consumes these events to render live progress bars, tool counts, and activity streams. The progress tracking is not just cosmetic -- it is the primary feedback mechanism that tells users whether a background agent is making progress or stuck in a loop.
+对于后台智能体，进度通过 `updateAsyncAgentProgress()` 写入 `AppState`，并通过 `emitTaskProgress()` 作为 SDK 事件发出。VS Code 子智能体面板消费这些事件以渲染实时进度条、工具计数和活动流。进度跟踪不仅仅是装饰性的——它是告诉用户后台智能体是在取得进展还是陷入循环的主要反馈机制。
 
 ---
 
-## Coordinator Mode
+## 协调器模式
 
-Coordinator mode transforms Claude Code from a single agent with background helpers into a true manager-worker architecture. It is the most opinionated orchestration pattern in the system, and its design reveals deep thinking about how LLMs should and should not delegate work.
+协调器模式将 Claude Code 从带有后台助手的单一智能体转变为真正的管理者-工作者架构。它是系统中最具主张性的编排模式，其设计揭示了对 LLM 应如何及不应如何委派工作的深刻思考。
 
-### The Problem Coordinator Mode Solves
+### 协调器模式解决的问题
 
-The standard agent loop has a single conversation and a single context window. When it spawns a background agent, the background agent runs independently and reports results via task notifications. This works well for simple delegation -- "run the tests while I keep editing" -- but breaks down for complex multi-step workflows.
+标准智能体循环拥有单一对话和单一上下文窗口。当它生成后台智能体时，后台智能体独立运行并通过任务通知报告结果。这对于简单委派效果很好——“在我继续编辑的同时运行测试”——但对于复杂的多步骤工作流则会崩溃。
 
-Consider a codebase migration. The agent needs to: (1) understand the current patterns across 200 files, (2) design the migration strategy, (3) apply changes to each file, and (4) verify nothing broke. Steps 1 and 3 benefit from parallelism. Step 2 requires synthesizing the results of step 1. Step 4 depends on step 3. A single agent doing this sequentially would spend most of its token budget re-reading files. Multiple background agents doing this without coordination would produce inconsistent changes.
+考虑代码库迁移。智能体需要：(1) 理解200个文件中的当前模式，(2) 设计迁移策略，(3) 对每个文件应用更改，(4) 验证没有破坏任何功能。步骤1和3受益于并行性。步骤2需要综合步骤1的结果。步骤4依赖于步骤3。单个智能体按顺序执行会将大部分 token 预算花费在重新读取文件上。多个后台智能体在没有协调的情况下执行会产生不一致的更改。
 
-Coordinator mode solves this by splitting the "thinking" agent from the "doing" agents. The coordinator handles steps 1 and 2 (dispatching research workers, then synthesizing). Workers handle steps 3 and 4 (applying changes, running tests). The coordinator sees the full picture; workers see their specific task.
+协调器模式通过将“思考”智能体与“执行”智能体分离来解决这个问题。协调器处理步骤1和2（派遣研究工作者，然后综合）。工作者处理步骤3和4（应用更改，运行测试）。协调器看到全貌；工作者看到其特定任务。
 
-### Activation
+### 激活
 
-A single environment variable flips the switch:
+一个环境变量即可开启开关：
 
 ```typescript
 export function isCoordinatorMode(): boolean {
@@ -275,19 +275,19 @@ export function isCoordinatorMode(): boolean {
 }
 ```
 
-On session resume, `matchSessionMode()` checks whether the resumed session's stored mode matches the current environment. If they diverge, the environment variable is flipped to match. This prevents the confusing scenario where a coordinator session resumes as a regular agent (losing awareness of its workers) or a regular session resumes as a coordinator (losing access to its tools). The session's mode is the source of truth; the environment variable is the runtime signal.
+在会话恢复时，`matchSessionMode()` 检查恢复会话的存储模式是否与当前环境匹配。如果不一致，环境变量会被翻转以匹配。这防止了令人困惑的场景：协调器会话恢复为普通智能体（失去对工作者的感知）或普通会话恢复为协调器（失去对其工具的访问）。会话的模式是事实来源；环境变量是运行时信号。
 
-### Tool Restrictions
+### 工具限制
 
-The coordinator's power comes not from having more tools, but from having fewer. In coordinator mode, the coordinator agent gets exactly three tools:
+协调器的能力不在于拥有更多工具，而在于拥有更少。在协调器模式下，协调器智能体恰好拥有三个工具：
 
-- **Agent** -- spawn workers
-- **SendMessage** -- communicate with existing workers
-- **TaskStop** -- terminate running workers
+- **Agent** —— 生成工作者
+- **SendMessage** —— 与现有工作者通信
+- **TaskStop** —— 终止运行中的工作者
 
-That is it. No file reading. No code editing. No shell commands. The coordinator cannot directly touch the codebase. This restriction is not a limitation -- it is the core design principle. The coordinator's job is to think, plan, decompose, and synthesize. Workers do the work.
+仅此而已。不能读取文件。不能编辑代码。不能执行 shell 命令。协调器不能直接接触代码库。这种限制不是缺陷——而是核心设计原则。协调器的工作是思考、规划、分解和综合。工作者负责执行。
 
-Workers, conversely, get the full tool set minus internal coordination tools:
+相反，工作者获得完整的工具集，但减去内部协调工具：
 
 ```typescript
 const INTERNAL_WORKER_TOOLS = new Set([
@@ -298,17 +298,17 @@ const INTERNAL_WORKER_TOOLS = new Set([
 ])
 ```
 
-Workers cannot spawn their own sub-teams or send messages to peers. They report results through the normal task completion mechanism, and the coordinator synthesizes across them.
+工作者不能生成自己的子团队或向同伴发送消息。他们通过正常的任务完成机制报告结果，协调器在他们之间进行综合。
 
-### The 370-Line System Prompt
+### 370行的系统提示词
 
-The coordinator system prompt is, line for line, the most instructive document in the codebase about how to use LLMs for orchestration. It runs approximately 370 lines and encodes hard-won lessons about delegation patterns. The key teachings:
+协调器系统提示词逐行来看，是代码库中关于如何使用 LLM 进行编排的最具指导意义的文档。它大约有370行，编码了关于委派模式的宝贵经验教训。关键教导包括：
 
-**"Never delegate understanding."** This is the central thesis. The coordinator must synthesize research findings into specific prompts with file paths, line numbers, and exact changes. The prompt explicitly calls out anti-patterns like "based on your findings, fix the bug" -- a prompt that delegates *comprehension* to the worker, forcing it to re-derive context the coordinator already has. The correct pattern is: "In `src/auth/validate.ts` at line 42, the `userId` parameter can be null when called from the OAuth flow. Add a null check that returns a 401 response."
+**“绝不委派理解。”** 这是中心论点。协调器必须将研究发现综合成包含文件路径、行号和确切更改的具体提示词。提示词明确指出了反模式，如“根据你的发现修复错误”——这种提示词将*理解*委派给了工作者，迫使其重新推导协调器已有的上下文。正确的模式是：“在 `src/auth/validate.ts` 的第42行，当从 OAuth 流程调用时，`userId` 参数可能为 null。添加一个 null 检查，返回 401 响应。”
 
-**"Parallelism is your superpower."** The prompt establishes a clear concurrency model. Read-only tasks run freely in parallel -- research, exploration, file reading. Write-heavy tasks serialize per file set. The coordinator is expected to reason about which tasks can overlap and which must sequence. A good coordinator spawns five research workers simultaneously, waits for all of them, synthesizes, then spawns three implementation workers that touch disjoint file sets. A bad coordinator spawns one worker, waits, spawns the next, waits again -- serializing work that could have been parallel.
+**“并行是你的超能力。”** 提示词建立了清晰的并发模型。只读任务自由并行运行——研究、探索、文件读取。写密集型任务按文件集串行化。协调器应推理哪些任务可以重叠，哪些必须按序执行。优秀的协调器同时生成五个研究工作者，等待所有结果，综合，然后生成三个触及不相交文件集的实现工作者。糟糕的协调器生成一个工作者，等待，再生成下一个，再次等待——将本可并行的工作串行化。
 
-**Task workflow phases.** The prompt defines four phases:
+**任务工作流阶段。** 提示词定义了四个阶段：
 
 ```mermaid
 graph LR
@@ -322,35 +322,35 @@ graph LR
     V -.- V1[Workers run tests\nverify changes]
 ```
 
-1. **Research** -- workers explore the codebase in parallel, reading files, running tests, gathering information
-2. **Synthesis** -- the coordinator (not a worker) reads all research results and builds a unified understanding
-3. **Implementation** -- workers receive precise instructions derived from the synthesis
-4. **Verification** -- workers run tests and verify the changes
+1. **研究（Research）** —— 工作者并行探索代码库，读取文件，运行测试，收集信息
+2. **综合（Synthesis）** —— 协调器（而非工作者）阅读所有研究结果并建立统一理解
+3. **实施（Implementation）** —— 工作者接收源自综合结果的精确指令
+4. **验证（Verification）** —— 工作者运行测试并验证更改
 
-The coordinator should not skip phases. The most common failure mode is jumping from research directly to implementation without synthesis. When this happens, the coordinator delegates understanding to the implementation workers -- each one must re-derive context from scratch, leading to inconsistent changes and wasted tokens.
+协调器不应跳过阶段。最常见的失败模式是从研究直接跳到实施而没有综合。当这种情况发生时，协调器将理解委派给了实施工作者——每个人都必须从头重新推导上下文，导致更改不一致和 token 浪费。
 
-**The continue-vs-spawn decision.** When a worker finishes and the coordinator has follow-up work, should it send a message to the existing worker (via SendMessage) or spawn a fresh one (via Agent)? The decision is a function of context overlap:
+**继续与生成的决策。** 当工作者完成且协调器有后续工作时，应该向现有工作者发送消息（通过 SendMessage）还是生成一个新的（通过 Agent）？该决策取决于上下文重叠度：
 
-- **High overlap, same files**: Continue. The worker already has the file contents in its context, understands the patterns, and can build on its previous work. Spawning fresh would force re-reading the same files and re-deriving the same understanding.
-- **Low overlap, different domain**: Spawn fresh. A worker that just investigated the authentication system carries 20,000 tokens of auth-specific context that is dead weight for a CSS refactoring task. Starting clean is cheaper.
-- **High overlap but the worker failed**: Spawn fresh with explicit guidance about what went wrong. Continuing a failed worker often means fighting against confused context. A fresh start with "the previous attempt failed because X, avoid Y" is more reliable.
-- **Follow-up requires the worker's output**: Continue, with the output included in the SendMessage. The worker does not need to re-derive its own results.
+- **高重叠，相同文件**：继续。工作者上下文中已有文件内容，理解模式，并可在之前的工作基础上构建。重新生成会迫使重新读取相同文件并重新推导相同理解。
+- **低重叠，不同领域**：重新生成。刚调查完认证系统的工作者携带了20,000个 token 的认证特定上下文，这对 CSS 重构任务是死重。重新开始更便宜。
+- **高重叠但工作者失败**：重新生成并提供关于出错原因的明确指导。继续一个失败的工作者通常意味着对抗混乱的上下文。带有“上次尝试因 X 失败，避免 Y”的全新开始更可靠。
+- **后续工作需要工作者的输出**：继续，并在 SendMessage 中包含输出。工作者无需重新推导自己的结果。
 
-**Worker prompt writing and anti-patterns.** The prompt teaches the coordinator how to write effective worker prompts and explicitly flags bad patterns:
+**工作者提示词编写与反模式。** 提示词教导协调器如何编写有效的工作者提示词，并明确标记不良模式：
 
-Anti-pattern: *"Based on your research findings, implement the fix."* This delegates comprehension. The worker was not the one who did the research -- the coordinator read the research results.
+反模式：*“根据你的研究发现，实施修复。”* 这委派了理解。做研究的不是工作者——是协调器阅读了研究结果。
 
-Anti-pattern: *"Fix the bug in the auth module."* No file paths, no line numbers, no description of the bug. The worker must search the entire codebase from scratch.
+反模式：*“修复认证模块中的错误。”* 没有文件路径，没有行号，没有错误描述。工作者必须从头搜索整个代码库。
 
-Anti-pattern: *"Make the same change to all the other files."* Which files? What change? The coordinator knows; it should enumerate them.
+反模式：*“对所有其他文件进行相同的更改。”* 哪些文件？什么更改？协调器知道；它应该列举出来。
 
-Good pattern: *"In `src/auth/validate.ts` at line 42, the `userId` parameter can be null when called from `src/oauth/callback.ts:89`. Add a null check: if `userId` is null, return `{ error: 'unauthorized', status: 401 }`. Then update the test in `src/auth/__tests__/validate.test.ts` to cover the null case."*
+良好模式：*“在 `src/auth/validate.ts` 的第42行，当从 `src/oauth/callback.ts:89` 调用时，`userId` 参数可能为 null。添加 null 检查：如果 `userId` 为 null，返回 `{ error: 'unauthorized', status: 401 }`。然后更新 `src/auth/__tests__/validate.test.ts` 中的测试以覆盖 null 情况。”*
 
-The cost of writing a specific prompt is borne once, by the coordinator. The benefit -- a worker that executes correctly on the first try -- is enormous. Vague prompts create a false economy: the coordinator saves 30 seconds of prompt writing and the worker wastes 5 minutes of exploration.
+编写具体提示词的成本由协调器承担一次。收益——工作者第一次尝试就正确执行——是巨大的。模糊的提示词造成了虚假的经济性：协调器节省了30秒的提示词编写时间，而工作者浪费了5分钟的探索时间。
 
-### Worker Context
+### 工作者上下文
 
-The coordinator injects information about available tools into its own context, so the model knows what workers can do:
+协调器将可用工具的信息注入其自身上下文，以便模型知道工作者能做什么：
 
 ```typescript
 export function getCoordinatorUserContext(mcpClients, scratchpadDir?) {
@@ -363,13 +363,13 @@ export function getCoordinatorUserContext(mcpClients, scratchpadDir?) {
 }
 ```
 
-The scratchpad directory (gated by the `tengu_scratch` feature flag) is a shared filesystem location where workers can read and write without permission prompts. It enables durable cross-worker knowledge sharing -- one worker's research notes become another worker's input, mediated through the filesystem rather than through the coordinator's token window.
+暂存目录（受 `tengu_scratch` 特性标志门控）是一个共享文件系统位置，工作者可以在其中读写而无需权限提示。它实现了持久的跨工作者知识共享——一个工作者的研究笔记成为另一个工作者的输入，通过文件系统而非协调器的 token 窗口进行中介。
 
-This is significant because it solves a fundamental limitation of the coordinator pattern. Without a scratchpad, all information flows through the coordinator: Worker A produces findings, the coordinator reads them via TaskOutput, synthesizes them into Worker B's prompt. The coordinator's context window becomes the bottleneck -- it must hold all intermediate results long enough to synthesize them. With a scratchpad, Worker A writes findings to `/tmp/scratchpad/auth-analysis.md`, and the coordinator tells Worker B: "Read the auth analysis at `/tmp/scratchpad/auth-analysis.md` and apply the pattern to the OAuth module." The coordinator moves information by reference, not by value.
+这很重要，因为它解决了协调器模式的一个根本局限。没有暂存目录，所有信息都流经协调器：工作者 A 产出发现，协调器通过 TaskOutput 读取，将其综合到工作者 B 的提示词中。协调器的上下文窗口成为瓶颈——它必须保留所有中间结果足够长的时间来进行综合。有了暂存目录，工作者 A 将发现写入 `/tmp/scratchpad/auth-analysis.md`，协调器告诉工作者 B：“读取 `/tmp/scratchpad/auth-analysis.md` 的认证分析并将该模式应用于 OAuth 模块。”协调器通过引用而非值来移动信息。
 
-### Mutual Exclusion with Fork
+### Fork 互斥
 
-Coordinator mode and fork-based subagents are mutually exclusive:
+协调器模式与基于 fork 的子智能体互斥：
 
 ```typescript
 export function isForkSubagentEnabled(): boolean {
@@ -380,17 +380,17 @@ export function isForkSubagentEnabled(): boolean {
 }
 ```
 
-The conflict is fundamental. Fork agents inherit the parent's entire conversation context -- they are cheap clones that share prompt cache. Coordinator workers are independent agents with fresh context and specific instructions. These are opposing philosophies of delegation, and the system enforces the choice at the feature flag level.
+冲突是根本性的。Fork 智能体继承父级的整个对话上下文——它们是共享提示缓存的廉价克隆。协调器工作者是具有全新上下文和特定指令的独立智能体。这是对立的委派哲学，系统在特性标志层面强制执行这一选择。
 
 ---
 
-## The Swarm System
+## 集群系统
 
-Coordinator mode is hierarchical: one manager, many workers, top-down control. The swarm system is the peer-to-peer alternative -- multiple Claude Code instances working as a team, with a leader coordinating multiple teammates through message passing.
+协调器模式是层级式的：一个管理者，多个工作者，自上而下的控制。集群系统是点对点的替代方案——多个 Claude Code 实例作为一个团队工作，领导者通过消息传递协调多个队友。
 
-### Team Context
+### 团队上下文
 
-Teams are identified by a `teamName` and tracked in `AppState.teamContext`:
+团队由 `teamName` 标识，并在 `AppState.teamContext` 中跟踪：
 
 ```typescript
 teamContext?: {
@@ -401,11 +401,11 @@ teamContext?: {
 }
 ```
 
-Each teammate gets a name (for addressing) and a color (for visual distinction in the UI). The team file is persisted on disk so that team membership survives process restarts.
+每个队友都有一个名称（用于寻址）和一个颜色（用于 UI 中的视觉区分）。团队文件持久化在磁盘上，以便团队成员身份在进程重启后依然存在。
 
-### Agent Name Registry
+### 智能体名称注册表
 
-Background agents can be given names at spawn time, which makes them addressable by human-readable identifiers instead of random task IDs:
+后台智能体可以在生成时被赋予名称，这使得它们可以通过人类可读的标识符而非随机任务 ID 进行寻址：
 
 ```typescript
 if (name) {
@@ -417,25 +417,25 @@ if (name) {
 }
 ```
 
-The `agentNameRegistry` is a `Map<string, AgentId>`. When `SendMessage` resolves a `to` field, the registry is checked first:
+`agentNameRegistry` 是一个 `Map<string, AgentId>`。当 `SendMessage` 解析 `to` 字段时，首先检查注册表：
 
 ```typescript
 const registered = appState.agentNameRegistry.get(input.to)
 const agentId = registered ?? toAgentId(input.to)
 ```
 
-This means you can send a message to `"researcher"` instead of `a7j3n9p2`. The indirection is simple but it enables the coordinator to think in terms of roles rather than IDs -- a significant improvement for the model's ability to reason about multi-agent workflows.
+这意味着你可以向 `"researcher"` 发送消息，而不是 `a7j3n9p2`。这种间接寻址很简单，但它使协调器能够从角色而非 ID 的角度思考——这对模型推理多智能体工作流的能力是一个显著改进。
 
-### In-Process Teammates
+### 进程内队友
 
-In-process teammates run in the same Node.js process as the leader, isolated via `AsyncLocalStorage`. Their state extends the base with team-specific fields:
+进程内队友在与领导者相同的 Node.js 进程中运行，通过 `AsyncLocalStorage` 隔离。其状态在基础状态上扩展了团队特定字段：
 
 ```typescript
 export type InProcessTeammateTaskState = TaskStateBase & {
   type: 'in_process_teammate'
   identity: TeammateIdentity
   prompt: string
-  messages?: Message[]                  // Capped at 50
+  messages?: Message[]                  // 上限50条
   pendingUserMessages: string[]
   isIdle: boolean
   shutdownRequested: boolean
@@ -446,17 +446,17 @@ export type InProcessTeammateTaskState = TaskStateBase & {
 }
 ```
 
-The `messages` cap at 50 entries deserves explanation. During development, analysis revealed that each in-process agent accumulates approximately 20MB of RSS at 500+ turns. Whale sessions -- power users running extended workflows -- were observed launching 292 agents in 2 minutes, driving RSS to 36.8GB. The 50-message cap for the UI representation is a memory safety valve. The agent's actual conversation continues with full history; only the UI-facing snapshot is truncated.
+`messages` 上限为50条值得解释。在开发过程中，分析显示每个进程内智能体在500+轮次后累积约20MB RSS。鲸鱼会话（运行扩展工作流的超级用户）被观察到在2分钟内启动了292个智能体，将 RSS 推高至36.8GB。UI 表示的50条消息上限是一种内存安全阀。智能体的实际对话继续保留完整历史；只有面向 UI 的快照被截断。
 
-The `isIdle` flag enables a work-stealing pattern. An idle teammate is not consuming tokens or API calls -- it is simply waiting for the next message. The `onIdleCallbacks` array lets the system hook into the transition from active to idle, enabling orchestration patterns like "wait for all teammates to finish, then proceed."
+`isIdle` 标志启用了工作窃取模式。空闲队友不消耗 token 或 API 调用——它只是在等待下一条消息。`onIdleCallbacks` 数组让系统能够挂钩从活跃到空闲的转换，从而实现“等待所有队友完成，然后继续”等编排模式。
 
-The `currentWorkAbortController` is distinct from the teammate's main abort controller. Aborting the current work controller cancels the teammate's ongoing turn but does not kill the teammate. This enables a "redirect" pattern: the leader sends a higher-priority message, the teammate's current work is aborted, and the teammate picks up the new message. The main abort controller, when aborted, kills the teammate entirely. Two levels of interruption for two levels of intent.
+`currentWorkAbortController` 不同于队友的主中止控制器。中止当前工作控制器会取消队友正在进行的回合，但不会杀死队友。这启用了一种“重定向”模式：领导者发送更高优先级的消息，队友的当前工作被中止，队友接收新消息。主中止控制器被中止时，会完全杀死队友。两级中断对应两级意图。
 
-The `shutdownRequested` flag implements cooperative termination. When the leader sends a shutdown request, this flag is set. The teammate can check it at natural stopping points and wind down gracefully -- finishing its current file write, committing its changes, or sending a final status update. This is gentler than a hard kill, which might leave files in an inconsistent state.
+`shutdownRequested` 标志实现了协作终止。当领导者发送关闭请求时，设置此标志。队友可以在自然停止点检查它并优雅地结束——完成当前的文件写入，提交更改，或发送最终状态更新。这比硬杀更温和，硬杀可能会使文件处于不一致状态。
 
-### The Mailbox
+### 邮箱
 
-Teammates communicate via a file-based mailbox system. When `SendMessage` targets a teammate, the message is written to the recipient's mailbox file on disk:
+队友通过基于文件的邮箱系统进行通信。当 `SendMessage` 指向队友时，消息被写入接收者在磁盘上的邮箱文件：
 
 ```typescript
 await writeToMailbox(recipientName, {
@@ -468,11 +468,11 @@ await writeToMailbox(recipientName, {
 }, teamName)
 ```
 
-Messages can be plain text, structured protocol messages (shutdown requests, plan approvals), or broadcasts (`to: "*"` sends to all team members excluding the sender). A poller hook processes incoming messages and routes them into the teammate's conversation.
+消息可以是纯文本、结构化协议消息（关闭请求、计划批准）或广播（`to: "*"` 发送给除发送者外的所有团队成员）。轮询钩子处理传入消息并将其路由到队友的对话中。
 
-The file-based approach is deliberately simple. There is no message broker, no event bus, no shared memory channel. Files are durable (surviving process crashes), inspectable (you can `cat` a mailbox), and cheap (no infrastructure dependencies). For a system where message volumes are measured in tens per session, not thousands per second, this is the right trade-off. A Redis-backed message queue would add operational complexity, a dependency, and failure modes -- all for a throughput requirement that a filesystem call handles trivially.
+基于文件的方法刻意保持简单。没有消息代理，没有事件总线，没有共享内存通道。文件是持久的（能在进程崩溃中幸存），可检查的（你可以 `cat` 邮箱），且廉价的（无基础设施依赖）。对于一个消息量以每次会话数十条而非每秒数千条衡量的系统来说，这是正确的权衡。Redis 支持的消息队列会增加运维复杂性、依赖项和故障模式——而这一切只是为了满足文件系统调用就能轻松处理的吞吐量需求。
 
-The broadcast mechanism deserves a note. When a message is sent to `"*"`, the sender iterates all team members from the team file, skips itself (case-insensitive comparison), and writes to each member's mailbox individually:
+广播机制值得一提。当消息发送给 `"*"` 时，发送者遍历团队文件中的所有成员，跳过自己（大小写不敏感比较），并单独写入每个成员的邮箱：
 
 ```typescript
 for (const member of teamFile.members) {
@@ -484,11 +484,11 @@ for (const recipientName of recipients) {
 }
 ```
 
-There is no fan-out optimization -- each recipient gets a separate file write. Again, at the scale of agent teams (typically 3-8 members), this is perfectly adequate. If a team had 100 members, this would need rethinking. But the 50-message memory cap that prevents 36GB RSS scenarios also implicitly caps the effective team size.
+没有扇出优化——每个接收者都有单独的文件写入。同样，在智能体团队的规模下（通常3-8名成员），这完全足够。如果团队有100名成员，这需要重新思考。但防止36GB RSS场景的50条消息内存上限也隐式限制了有效团队规模。
 
-### Permission Forwarding
+### 权限转发
 
-Swarm workers operate with restricted permissions but can escalate to the leader when they need approval for sensitive operations:
+集群工作者以受限权限运行，但在需要敏感操作批准时可以向领导者升级：
 
 ```typescript
 const request = createPermissionRequest({
@@ -498,15 +498,15 @@ registerPermissionCallback({ requestId, toolUseId, onAllow, onReject })
 void sendPermissionRequestViaMailbox(request)
 ```
 
-The flow is: worker hits a tool that requires permission, the bash classifier attempts auto-approval, and if that fails, the request is forwarded to the leader via the mailbox system. The leader sees the request in their UI and can approve or reject. The callback fires and the worker proceeds. This lets workers operate autonomously for safe operations while maintaining human oversight for dangerous ones.
+流程是：工作者遇到需要权限的工具，bash 分类器尝试自动批准，如果失败，请求通过邮箱系统转发给领导者。领导者在 UI 中看到请求并可以批准或拒绝。回调触发，工作者继续。这让工作者在安全操作上自主运行，同时对危险操作保持人工监督。
 
 ---
 
-## Inter-Agent Communication: SendMessage
+## 智能体间通信：SendMessage
 
-`SendMessageTool` is the universal communication primitive. It handles four distinct routing modes through a single tool interface, selected by the shape of the `to` field.
+`SendMessageTool` 是通用通信原语。它通过单一工具接口处理四种不同的路由模式，由 `to` 字段的形态选择。
 
-### Input Schema
+### 输入模式
 
 ```typescript
 inputSchema = z.object({
@@ -524,11 +524,11 @@ inputSchema = z.object({
 })
 ```
 
-The `message` field is a union of plain text and structured protocol messages. This means SendMessage serves double duty -- it is both the informal chat channel ("here are my findings") and the formal protocol layer ("I approve your plan" / "please shut down").
+`message` 字段是纯文本和结构化协议消息的联合类型。这意味着 SendMessage 身兼二职——既是非正式聊天通道（“这是我的发现”），也是正式协议层（“我批准你的计划”/“请关闭”）。
 
-### Routing Dispatch
+### 路由分发
 
-The `call()` method follows a priority-ordered dispatch chain:
+`call()` 方法遵循优先级排序的分发链：
 
 ```mermaid
 graph TD
@@ -551,30 +551,30 @@ graph TD
     style ERR fill:#f66
 ```
 
-**1. Bridge messages** (`bridge:<session-id>`). Cross-machine communication via Anthropic's Remote Control servers. This is the widest reach -- two Claude Code instances on different machines, potentially different continents, communicating through a relay. The system requires explicit user consent before sending bridge messages -- a safety check that prevents one agent from unilaterally establishing communication with a remote instance. Without this gate, a compromised or confused agent could exfiltrate information to a remote session. The consent check uses `postInterClaudeMessage()`, which handles serialization and transport over the Remote Control relay.
+**1. Bridge 消息** (`bridge:<session-id>`)。通过 Anthropic 远程控制服务器的跨机器通信。这是覆盖范围最广的——两台不同机器甚至不同大陆上的 Claude Code 实例通过中继进行通信。系统在发送 bridge 消息前需要明确的用户同意——这是一项安全检查，防止一个智能体单方面与远程实例建立通信。没有这个门控，受损或混乱的智能体可能会将信息泄露到远程会话。同意检查使用 `postInterClaudeMessage()`，它处理序列化并通过远程控制中继传输。
 
-**2. UDS messages** (`uds:<socket-path>`). Local inter-process communication via Unix Domain Sockets. This is for Claude Code instances running on the same machine but in different processes -- for example, a VS Code extension hosting one instance and a terminal hosting another. UDS communication is fast (no network round-trip), secure (filesystem permissions control access), and reliable (the kernel handles delivery). The `sendToUdsSocket()` function serializes the message and writes it to the socket path specified in the `to` field. Peers discover each other via a `ListPeers` tool that scans for active UDS endpoints.
+**2. UDS 消息** (`uds:<socket-path>`)。通过 Unix 域套接字的本地进程间通信。这适用于在同一机器上但在不同进程中运行的 Claude Code 实例——例如，一个 VS Code 扩展托管一个实例，终端托管另一个。UDS 通信快速（无网络往返），安全（文件系统权限控制访问），且可靠（内核处理传递）。`sendToUdsSocket()` 函数序列化消息并将其写入 `to` 字段指定的套接字路径。对等方通过扫描活动 UDS 端点的 `ListPeers` 工具发现彼此。
 
-**3. In-process subagent routing** (plain name or agent ID). This is the most common path. The routing logic:
+**3. 进程内子智能体路由**（纯名称或智能体 ID）。这是最常见的路径。路由逻辑：
 
-- Look up `input.to` in the `agentNameRegistry`
-- If found and running: `queuePendingMessage()` -- the message waits for the next tool-round boundary
-- If found but in a terminal state: `resumeAgentBackground()` -- the agent is transparently restarted
-- If not in `AppState`: attempt to resume from the disk transcript
+- 在 `agentNameRegistry` 中查找 `input.to`
+- 如果找到且正在运行：`queuePendingMessage()` —— 消息等待下一个工具轮次边界
+- 如果找到但处于终态：`resumeAgentBackground()` —— 智能体被透明重启
+- 如果不在 `AppState` 中：尝试从磁盘转录记录恢复
 
-**4. Team mailbox** (fallback when team context is active). Named recipients get messages written to their mailbox files. The `"*"` wildcard triggers a broadcast to all team members.
+**4. 团队邮箱**（当团队上下文激活时的回退）。命名接收者的消息被写入其邮箱文件。`"*"` 通配符触发向所有团队成员的广播。
 
-### Structured Protocols
+### 结构化协议
 
-Beyond plain text, SendMessage carries two formal protocols.
+除了纯文本，SendMessage 还承载两种正式协议。
 
-**The shutdown protocol.** The leader sends `{ type: 'shutdown_request', reason: '...' }` to a teammate. The teammate responds with `{ type: 'shutdown_response', request_id, approve: true/false, reason }`. If approved, in-process teammates abort their controller; tmux-based teammates receive a `gracefulShutdown()` call. The protocol is cooperative -- a teammate can reject a shutdown request if it is in the middle of critical work, and the leader must handle that case.
+**关闭协议。** 领导者向队友发送 `{ type: 'shutdown_request', reason: '...' }`。队友响应 `{ type: 'shutdown_response', request_id, approve: true/false, reason }`。如果批准，进程内队友中止其控制器；基于 tmux 的队友收到 `gracefulShutdown()` 调用。该协议是协作式的——如果队友正处于关键工作中，它可以拒绝关闭请求，领导者必须处理这种情况。
 
-**The plan approval protocol.** Teammates operating in plan mode must get approval before executing. They submit a plan, and the leader responds with `{ type: 'plan_approval_response', request_id, approve, feedback }`. Only the team lead can issue approvals. This creates a review gate -- the leader can examine a worker's intended approach before any files are touched, catching misunderstandings early.
+**计划批准协议。** 在计划模式下运行的队友必须在执行前获得批准。他们提交计划，领导者响应 `{ type: 'plan_approval_response', request_id, approve, feedback }`。只有团队负责人可以发布批准。这创建了一个审查关口——领导者可以在触及任何文件之前检查工作者的预期方法，尽早发现误解。
 
-### The Auto-Resume Pattern
+### 自动恢复模式
 
-The most elegant feature of the routing system is transparent agent resumption. When `SendMessage` targets a completed or killed agent, instead of returning an error, it resurrects the agent:
+路由系统最优雅的特性是透明的智能体恢复。当 `SendMessage` 指向已完成或被杀死的智能体时，它不会返回错误，而是复活该智能体：
 
 ```typescript
 if (task.status !== 'running') {
@@ -593,107 +593,107 @@ if (task.status !== 'running') {
 }
 ```
 
-The `resumeAgentBackground()` function reconstructs the agent from its disk transcript:
+`resumeAgentBackground()` 函数从磁盘转录记录重建智能体：
 
-1. Reads the sidechain JSONL transcript
-2. Reconstructs the message history, filtering orphaned thinking blocks and unresolved tool uses
-3. Rebuilds the content replacement state for prompt cache stability
-4. Resolves the original agent definition from stored metadata
-5. Re-registers as a background task with a fresh abort controller
-6. Calls `runAgent()` with the restored history plus the new message as prompt
+1. 读取侧链 JSONL 转录记录
+2. 重建消息历史，过滤孤立的思考块和未解决的工具使用
+3. 重建内容替换状态以保持提示缓存稳定性
+4. 从存储的元数据解析原始智能体定义
+5. 使用新的中止控制器重新注册为后台任务
+6. 使用恢复的历史记录加上新消息作为提示词调用 `runAgent()`
 
-From the coordinator's perspective, sending a message to a dead agent and sending a message to a live agent are the same operation. The routing layer handles the complexity. This means coordinators do not need to track which agents are alive -- they simply send messages and the system figures it out.
+从协调器的角度来看，向已终止智能体发送消息和向活跃智能体发送消息是相同的操作。路由层处理复杂性。这意味着协调器不需要跟踪哪些智能体是活跃的——它们只需发送消息，系统会自行解决。
 
-The implications are significant. Without auto-resume, the coordinator would need to maintain a mental model of agent liveness: "Is `researcher` still running? Let me check. It completed. I need to spawn a new agent. But wait, should I use the same name? Will it have the same context?" With auto-resume, all of that collapses to: "Send `researcher` a message." If it is alive, the message is queued. If it is dead, it is resurrected with its full history. The coordinator's prompt complexity drops dramatically.
+影响是深远的。如果没有自动恢复，协调器需要维护智能体活跃度的心智模型：“`researcher` 还在运行吗？让我检查一下。它完成了。我需要生成一个新智能体。但等等，我应该使用相同的名字吗？它会有相同的上下文吗？”有了自动恢复，所有这些简化为：“给 `researcher` 发消息。”如果它活着，消息被排队。如果它死了，它带着完整历史被复活。协调器的提示词复杂性大幅降低。
 
-There is a cost, of course. Resuming from a disk transcript means re-reading potentially thousands of messages, reconstructing internal state, and making a new API call with a full context window. For a long-lived agent, this can be expensive in both latency and tokens. But the alternative -- requiring the coordinator to manually manage agent lifecycles -- is worse. The coordinator is an LLM. It is good at reasoning about problems and writing instructions. It is bad at bookkeeping. Auto-resume plays to the LLM's strengths by eliminating a category of bookkeeping entirely.
+当然也有代价。从磁盘转录记录恢复意味着重新读取可能数千条消息，重建内部状态，并使用完整上下文窗口进行新的 API 调用。对于长生命周期的智能体，这在延迟和 token 方面都可能很昂贵。但替代方案——要求协调器手动管理智能体生命周期——更糟。协调器是一个 LLM。它擅长推理问题和编写指令。它不擅长记账。自动恢复通过完全消除一类记账工作来发挥 LLM 的优势。
 
 ---
 
-## TaskStop: The Kill Switch
+## TaskStop：终止开关
 
-`TaskStopTool` is the complement to Agent and SendMessage -- it terminates running tasks:
+`TaskStopTool` 是 Agent 和 SendMessage 的补充——它终止运行中的任务：
 
 ```typescript
 inputSchema = z.strictObject({
   task_id: z.string().optional(),
-  shell_id: z.string().optional(),  // Deprecated backward compat
+  shell_id: z.string().optional(),  // 已弃用的向后兼容
 })
 ```
 
-The implementation delegates to `stopTask()`, which dispatches based on task type:
+实现委托给 `stopTask()`，根据任务类型分发：
 
-1. Look up the task in `AppState.tasks`
-2. Call `getTaskByType(task.type).kill(taskId, setAppState)`
-3. For agents: abort the controller, set status to `'killed'`, start the eviction timer
-4. For shells: kill the process group
+1. 在 `AppState.tasks` 中查找任务
+2. 调用 `getTaskByType(task.type).kill(taskId, setAppState)`
+3. 对于智能体：中止控制器，将状态设为 `'killed'`，启动驱逐计时器
+4. 对于 shell：杀死进程组
 
-The tool has a legacy alias `"KillShell"` -- a reminder that the task system evolved from simpler origins where the only background operation was a shell command.
+该工具有一个遗留别名 `"KillShell"` ——提醒我们任务系统是从更简单的起源演变而来的，那时唯一的后台操作就是 shell 命令。
 
-The kill mechanism varies by task type, but the pattern is consistent. For agents, killing means aborting the abort controller (which causes the `query()` loop to exit at the next yield point), setting the status to `'killed'`, and starting an eviction timer so the task state is cleaned up after a grace period. For shells, killing means sending a signal to the process group -- `SIGTERM` first, then `SIGKILL` if the process does not exit within a timeout. For in-process teammates, killing also triggers a shutdown notification to the team so other members know the teammate is gone.
+终止机制因任务类型而异，但模式一致。对于智能体，终止意味着中止中止控制器（导致 `query()` 循环在下一个 yield 点退出），将状态设为 `'killed'`，并启动驱逐计时器，以便在宽限期后清理任务状态。对于 shell，终止意味着向进程组发送信号——首先是 `SIGTERM`，如果进程未在超时时间内退出，则是 `SIGKILL`。对于进程内队友，终止还会触发向团队的关闭通知，以便其他成员知道该队友已离开。
 
-The eviction timer is worth noting. When an agent is killed, its state is not immediately purged. It lingers in `AppState.tasks` for a grace period (controlled by `evictAfter`) so that the UI can show the killed status, any final output can be read, and auto-resume via SendMessage remains possible. After the grace period, the state is garbage collected. This is the same pattern used for completed tasks -- the system distinguishes between "finished" (result available) and "forgotten" (state purged).
+驱逐计时器值得一提。当智能体被杀死时，其状态不会立即被清除。它在 `AppState.tasks` 中停留一段宽限期（由 `evictAfter` 控制），以便 UI 可以显示已杀死状态，可以读取任何最终输出，并且通过 SendMessage 的自动恢复仍然可行。宽限期过后，状态被垃圾回收。这与已完成任务使用的模式相同——系统区分“已完成”（结果可用）和“已遗忘”（状态已清除）。
 
 ---
 
-## Choosing Between Patterns
+## 模式选择
 
-(A note on naming: the codebase also contains `TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate` tools that manage a structured todo list -- a completely separate system from the background task state machine described here. `TaskStop` operates on `AppState.tasks`; `TaskUpdate` operates on a project tracking data store. The naming overlap is historical and a recurring source of model confusion.)
+（关于命名的说明：代码库还包含 `TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate` 工具，用于管理结构化待办事项列表——这与此处描述的后台任务状态机是完全独立的系统。`TaskStop` 操作 `AppState.tasks`；`TaskUpdate` 操作项目跟踪数据存储。命名重叠是历史原因造成的，也是模型混淆的常见来源。）
 
-With three orchestration patterns available -- background delegation, coordinator mode, and swarm teams -- the natural question is when to use each.
+有三种编排模式可用——后台委派、协调器模式和集群团队——自然的问题是何时使用哪种。
 
-**Simple delegation** (Agent tool with `run_in_background: true`) is appropriate when the parent has one or two independent tasks to offload. Run the tests in the background while continuing to edit. Search the codebase while waiting for a build. The parent stays in control, checks results when ready, and never needs a complex communication protocol. The overhead is minimal -- one task state entry, one disk output file, one notification on completion.
+**简单委派**（带 `run_in_background: true` 的 Agent 工具）适用于父级有一两个独立任务需要卸载的情况。在后台运行测试同时继续编辑。在等待构建时搜索代码库。父级保持控制，准备好时检查结果，永远不需要复杂的通信协议。开销极小——一个任务状态条目，一个磁盘输出文件，完成时一个通知。
 
-**Coordinator mode** is appropriate when the problem decomposes into a research phase, a synthesis phase, and an implementation phase -- and when the coordinator needs to reason across the results of multiple workers before directing the next step. The coordinator cannot touch files, which forces clean separation of concerns: thinking happens in one context, doing happens in another. The 370-line system prompt is not ceremony -- it encodes patterns that prevent the most common failure mode of LLM delegation, which is delegating comprehension instead of delegating action.
+**协调器模式**适用于问题可分解为研究阶段、综合阶段和实施阶段的情况——以及当协调器需要在指导下一步之前跨多个工作者的结果进行推理时。协调器不能接触文件，这强制了关注点的清晰分离：思考在一个上下文中发生，执行在另一个上下文中发生。370行的系统提示词不是仪式——它编码了防止 LLM 委派最常见失败模式（即委派理解而非委派行动）的模式。
 
-**Swarm teams** are appropriate for long-running collaborative sessions where agents need peer-to-peer communication, where the work is ongoing rather than batch-oriented, and where agents may need to idle and resume based on incoming messages. The mailbox system supports asynchronous patterns that coordinator mode (which is synchronous spawn-wait-synthesize) does not. Plan approval gates add a review layer. Permission forwarding maintains security without requiring every agent to have full privileges.
+**集群团队**适用于长期运行的协作会话，其中智能体需要点对点通信，工作是持续性的而非批处理导向的，并且智能体可能需要根据传入消息空闲和恢复。邮箱系统支持协调器模式（同步的生成-等待-综合）所不支持的异步模式。计划批准关口增加了审查层。权限转发在不需要每个智能体都拥有完全权限的情况下维持安全性。
 
-A practical decision table:
+实用决策表：
 
-| Scenario | Pattern | Why |
+| 场景 | 模式 | 原因 |
 |----------|---------|-----|
-| Run tests while editing | Simple delegation | One background task, no coordination needed |
-| Search codebase for all usages | Simple delegation | Fire-and-forget, read output when done |
-| Refactor 40 files across 3 modules | Coordinator | Research phase finds patterns, synthesis plans changes, workers execute in parallel per module |
-| Multi-day feature development with review gates | Swarm | Long-lived agents, plan approval protocol, peer communication |
-| Fix a bug with known location | Neither -- single agent | Orchestration overhead exceeds the benefit for focused, sequential work |
-| Migrate database schema + update API + update frontend | Coordinator | Three independent workstreams after a shared research/planning phase |
-| Pair programming with user oversight | Swarm with plan mode | Worker proposes, leader approves, worker executes |
+| 编辑时运行测试 | 简单委派 | 一个后台任务，无需协调 |
+| 搜索代码库的所有用法 | 简单委派 | 触发后即忘，完成后读取输出 |
+| 重构3个模块中的40个文件 | 协调器 | 研究阶段发现模式，综合规划更改，工作者按模块并行执行 |
+| 带审查关口的多天功能开发 | 集群 | 长生命周期智能体，计划批准协议，同伴通信 |
+| 修复已知位置的错误 | 都不需要——单智能体 | 对于专注的顺序工作，编排开销超过收益 |
+| 迁移数据库架构 + 更新 API + 更新前端 | 协调器 | 共享研究/规划阶段后的三个独立工作流 |
+| 带用户监督的结对编程 | 带计划模式的集群 | 工作者提议，领导者批准，工作者执行 |
 
-The patterns are not mutually exclusive in principle, but they are in practice. Coordinator mode disables fork subagents. Swarm teams have their own communication protocol that does not mix with coordinator task notifications. The choice is made at session startup via environment variables and feature flags, and it shapes the entire interaction model.
+这些模式原则上并不互斥，但在实践中是互斥的。协调器模式禁用 fork 子智能体。集群团队有自己的通信协议，不与协调器任务通知混合。选择在会话启动时通过环境变量和特性标志做出，它塑造了整个交互模型。
 
-One final observation: the simplest pattern is almost always the right starting point. Most tasks do not need coordinator mode or swarm teams. A single agent with occasional background delegation handles the vast majority of development work. The sophisticated patterns exist for the 5% of cases where the problem is genuinely wide, genuinely parallel, or genuinely long-running. Reaching for coordinator mode on a single-file bug fix is like deploying Kubernetes for a static website -- technically possible, architecturally inappropriate.
-
----
-
-## The Cost of Orchestration
-
-Before examining what the orchestration layer reveals philosophically, it is worth acknowledging what it costs practically.
-
-Every background agent is a separate API conversation. It has its own context window, its own token budget, and its own prompt cache slot. A coordinator that spawns 5 research workers is making 6 concurrent API calls, each with its own system prompt, tool definitions, and CLAUDE.md injection. The token overhead is not trivial -- the system prompt alone can be thousands of tokens, and each worker re-reads files that other workers may have already read.
-
-The communication channels add latency. Disk output files require filesystem I/O. Task notifications are delivered at tool-round boundaries, not instantly. The command queue introduces a full round-trip delay -- the coordinator sends a message, the message waits for the worker to finish its current tool use, the worker processes the message, and the result is written to disk for the coordinator to read.
-
-The state management adds complexity. Seven task types, five statuses, and dozens of fields per task state. The eviction logic, the garbage collection timers, the memory caps -- all of this exists because unbounded state growth caused real production incidents (36.8GB RSS).
-
-None of this means orchestration is wrong. It means orchestration is a tool with a cost, and the cost should be weighed against the benefit. Running 5 parallel workers to search a codebase is worthwhile when the search would take 5 sequential minutes. Running a coordinator to fix a typo in one file is pure overhead.
+最后一点观察：最简单的模式几乎总是正确的起点。大多数任务不需要协调器模式或集群团队。带有偶尔后台委派的单个智能体处理了绝大多数开发工作。复杂的模式是为那5%确实宽泛、确实并行或确实长期运行的问题而存在的。在单文件错误修复上使用协调器模式就像为静态网站部署 Kubernetes ——技术上可行，架构上不恰当。
 
 ---
 
-## What the Orchestration Layer Reveals
+## 编排的代价
 
-The most interesting aspect of this system is not any individual mechanism -- task states, mailboxes, and notification XML are all straightforward engineering. What is interesting is the *design philosophy* that emerges from how they fit together.
+在审视编排层在哲学上揭示了什么之前，值得承认它在实际上的代价。
 
-The coordinator prompt's "never delegate understanding" is not just good advice for LLM orchestration. It is a statement about the fundamental limitation of context-window-based reasoning. A worker with a fresh context window cannot understand what the coordinator understood after reading 50 files and synthesizing three research reports. The only way to bridge that gap is for the coordinator to distill its understanding into a specific, actionable prompt. Vague delegation is not just inefficient -- it is information-theoretically lossy.
+每个后台智能体都是一个独立的 API 对话。它有自己的上下文窗口、token 预算和提示缓存槽。一个生成5个研究工作者的协调器正在进行6个并发 API 调用，每个都有自己的系统提示词、工具定义和 CLAUDE.md 注入。Token 开销不容忽视——仅系统提示词就可能数千 token，每个工作者都会重新读取其他工作者可能已经读过的文件。
 
-The auto-resume pattern in SendMessage reveals a preference for *apparent simplicity over actual simplicity*. The implementation is complex -- reading disk transcripts, reconstructing content replacement state, re-resolving agent definitions. But the interface is trivial: send a message, and it works regardless of whether the recipient is alive or dead. The complexity is absorbed by the infrastructure so that the model (and the user) can reason in simpler terms.
+通信通道增加了延迟。磁盘输出文件需要文件系统 I/O。任务通知在工具轮次边界传递，而非即时。命令队列引入了完整的往返延迟——协调器发送消息，消息等待工作者完成当前工具使用，工作者处理消息，结果写入磁盘供协调器读取。
 
-And the 50-message memory cap on in-process teammates is a reminder that orchestration systems operate under real physical constraints. 292 agents in 2 minutes reaching 36.8GB of RSS is not a theoretical concern -- it happened in production. The abstractions are elegant, but they run on hardware with finite memory, and the system must degrade gracefully when users push it to extremes.
+状态管理增加了复杂性。七种任务类型，五种状态，每个任务状态数十个字段。驱逐逻辑、垃圾回收计时器、内存上限——所有这些存在都是因为无界状态增长导致了真实的生产事故（36.8GB RSS）。
 
-There is also a lesson in the layered architecture itself. The task state machine is agnostic -- it does not know about coordinators or swarms. The communication channels are agnostic -- SendMessage does not know whether it is being called by a coordinator, a swarm leader, or a standalone agent. The coordinator prompt is layered on top, adding methodology without changing the underlying machinery. Each layer can be understood independently, tested independently, and evolved independently. When the team added the swarm system, they did not need to modify the task state machine. When they added the coordinator prompt, they did not need to modify SendMessage.
+这并不意味着编排是错误的。这意味着编排是一种有代价的工具，代价应与收益权衡。当搜索需要5分钟顺序时间时，运行5个并行工作者搜索代码库是值得的。运行协调器修复一个文件中的拼写错误纯粹是开销。
 
-This is the hallmark of well-factored orchestration: the primitives are general, and the patterns are composed from them. A coordinator is just an agent with restricted tools and a detailed system prompt. A swarm leader is just an agent with a team context and mailbox access. A background worker is just an agent with an independent abort controller and a disk output file. The seven task types, five statuses, and four routing modes combine to produce orchestration patterns that are greater than the sum of their parts.
+---
 
-The orchestration layer is where Claude Code stops being a single-threaded tool executor and becomes something closer to a development team. The task state machine provides the bookkeeping. The communication channels provide the information flow. The coordinator prompt provides the methodology. And the swarm system provides the peer-to-peer topology for problems that do not fit a strict hierarchy. Together, they make it possible for a language model to do what no single model invocation can: work on wide problems, in parallel, with coordination.
+## 编排层的启示
 
-The next chapter examines the permission system -- the safety layer that determines which of these agents can do what, and how dangerous operations are escalated from workers to humans. Orchestration without permission controls would be a force multiplier for mistakes. The permission system ensures that more agents means more capability, not more risk.
+该系统最有趣的方面不是任何单一机制——任务状态、邮箱和通知 XML 都是直接的工程实现。有趣的是它们组合在一起所体现的*设计哲学*。
+
+协调器提示词的“绝不委派理解”不仅是 LLM 编排的好建议。它是关于基于上下文窗口推理的根本局限性的声明。拥有全新上下文窗口的工作者无法理解协调器在阅读50个文件并综合三份研究报告后所理解的内容。弥合这一差距的唯一方法是协调器将其理解提炼为具体、可操作的提示词。模糊的委派不仅效率低下——而且在信息论上是有损的。
+
+SendMessage 中的自动恢复模式揭示了对*表面简单性优于实际简单性*的偏好。实现很复杂——读取磁盘转录记录，重建内容替换状态，重新解析智能体定义。但接口微不足道：发送消息，无论接收者是活是死都能工作。复杂性被基础设施吸收，以便模型（和用户）可以用更简单的术语进行推理。
+
+进程内队友的50条消息内存上限提醒我们，编排系统在真实的物理约束下运行。2分钟内292个智能体达到36.8GB RSS 不是理论上的担忧——它在生产中发生过。抽象是优雅的，但它们运行在内存有限的硬件上，当用户将其推向极端时，系统必须优雅降级。
+
+分层架构本身也有教训。任务状态机是不可知的——它不知道协调器或集群。通信通道是不可知的——SendMessage 不知道它是被协调器、集群领导者还是独立智能体调用的。协调器提示词叠加在上面，增加方法论而不改变底层机制。每一层都可以独立理解、独立测试和独立演进。当团队添加集群系统时，他们不需要修改任务状态机。当他们添加协调器提示词时，他们不需要修改 SendMessage。
+
+这是良好分解编排的标志：原语是通用的，模式是由它们组合而成的。协调器只是一个拥有受限工具和详细系统提示词的智能体。集群领导者只是一个拥有团队上下文和邮箱访问权限的智能体。后台工作者只是一个拥有独立中止控制器和磁盘输出文件的智能体。七种任务类型、五种状态和四种路由模式结合产生的编排模式大于各部分之和。
+
+编排层是 Claude Code 从单线程工具执行器转变为更接近开发团队的地方。任务状态机提供记账。通信通道提供信息流。协调器提示词提供方法论。集群系统为不适合严格层级结构的问题提供点对点拓扑。它们共同使语言模型能够做到单次模型调用无法做到的事情：并行地、协调地处理宽泛问题。
+
+下一章将考察权限系统——决定这些智能体能做什么以及危险操作如何从工作者升级到人类的安全层。没有权限控制的编排将是错误的力量倍增器。权限系统确保更多的智能体意味着更多的能力，而非更多的风险。

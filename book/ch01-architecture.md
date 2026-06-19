@@ -1,214 +1,214 @@
-# Chapter 1: The Architecture of an AI Agent
+# 第1章：AI Agent 的架构
 
-## What You're Looking At
+## 你正在面对的是什么
 
-A traditional CLI is a function. It takes arguments, does work, and exits. `grep` does not decide to also run `sed`. `curl` does not open a file and patch it based on what it downloaded. The contract is simple: one command, one action, deterministic output.
+传统的命令行接口（CLI）本质上是一个函数。它接收参数，执行任务，然后退出。`grep` 不会自作主张地再去运行 `sed`；`curl` 也不会在下载内容后自动打开文件并对其进行修补。其契约非常简单：一条命令，一个动作，确定性的输出。
 
-An agentic CLI breaks every part of that contract. It takes a natural language prompt, decides what tools to use, executes them in whatever order the situation demands, evaluates the results, and loops until the task is done or the user stops it. The "program" is not a fixed sequence of instructions -- it is a loop around a language model that generates its own instruction sequence at runtime. The tool calls are the side effects. The model's reasoning is the control flow.
+而 Agent 化的 CLI 打破了这一契约的所有部分。它接收自然语言提示词（prompt），自主决定使用哪些工具，根据当前情况以任意顺序执行这些工具，评估执行结果，并不断循环，直到任务完成或用户主动终止。这里的“程序”不再是一组固定的指令序列——而是一个围绕语言模型的循环，该模型在运行时动态生成自己的指令序列。工具调用构成了副作用（side effects），而模型的推理过程则充当了控制流（control flow）。
 
-Claude Code is Anthropic's production implementation of this idea: a TypeScript monolith of nearly two thousand files that turns a terminal into a full development environment powered by Claude. It shipped to hundreds of thousands of developers, which means every architectural decision carries real-world consequences. This chapter gives you the mental model. Six abstractions define the entire system. A single data flow connects them. Once you internalize the golden path from keystroke to final output, every subsequent chapter is a zoom into one segment of that path.
+Claude Code 是 Anthropic 对这一理念的生产级实现：这是一个包含近两千个文件的 TypeScript 单体应用，它将终端转变为一个由 Claude 驱动的全功能开发环境。它已交付给数十万开发者使用，这意味着每一个架构决策都承载着真实的现实后果。本章将为你构建相应的心智模型。整个系统由六个抽象定义，并由单一的数据流将它们串联起来。一旦你将这条从按键输入到最终输出的“黄金路径”（golden path）内化于心，后续每一章都不过是对这条路径中某一片段的深入放大。
 
-What follows is a retrospective decomposition -- these six abstractions were not designed upfront on a whiteboard. They emerged from the pressures of shipping a production agent to a large user base. Understanding them as they are, not as they were planned, sets the right expectations for the rest of the book.
+接下来的内容是一种回顾式的拆解——这六个抽象并非事先在白板上设计好的。它们是在向庞大用户群交付生产级 Agent 的压力下逐渐涌现出来的。理解它们实际的样子，而非它们被规划时的样子，才能为阅读本书的其余部分建立正确的预期。
 
 ---
 
-## The Six Key Abstractions
+## 六大核心抽象
 
-Claude Code is built on six core abstractions. Everything else -- the 400+ utility files, the forked terminal renderer, the vim emulation, the cost tracker -- exists to support these six.
+Claude Code 建立在六个核心抽象之上。其他一切——包括 400 多个工具文件、分叉的终端渲染器、Vim 模拟层、成本追踪器——都是为了支撑这六个抽象而存在的。
 
 ```mermaid
 graph TD
-    User([User]) --> REPL["REPL (Ink/React)<br/>Input, display, keybindings"]
-    REPL --> QL["Query Loop<br/>Async generator, yields Messages"]
-    QL --> TS["Tool System<br/>40+ tools, Tool&lt;I,O,P&gt;"]
-    QL --> SL["State Layer<br/>Bootstrap STATE + AppState store"]
-    TS -->|tool results| QL
-    QL -->|spawns| Tasks["Tasks<br/>Sub-agents, state machines"]
-    Tasks -->|own query loop| QL
-    QL -->|fires| Hooks["Hooks<br/>27 lifecycle events"]
-    Hooks -->|can block tools| TS
-    Memory["Memory<br/>CLAUDE.md, MEMORY.md<br/>LLM-powered relevance"] -->|injected into system prompt| QL
+    User([用户]) --> REPL["REPL (Ink/React)<br/>输入、显示、快捷键绑定"]
+    REPL --> QL["查询循环<br/>异步生成器，产出 Message"]
+    QL --> TS["工具系统<br/>40+ 工具, Tool&lt;I,O,P&gt;"]
+    QL --> SL["状态层<br/>启动 STATE + AppState 存储"]
+    TS -->|工具结果| QL
+    QL -->|生成| Tasks["任务<br/>子 Agent、状态机"]
+    Tasks -->|自有查询循环| QL
+    QL -->|触发| Hooks["钩子<br/>27 个生命周期事件"]
+    Hooks -->|可阻断工具| TS
+    Memory["记忆<br/>CLAUDE.md, MEMORY.md<br/>LLM 驱动的相关性筛选"] -->|注入系统提示词| QL
 ```
 
-Here is what each one does and why it exists.
+以下是每个抽象的功能及其存在的原因。
 
-**1. The Query Loop** (`query.ts`, ~1,700 lines). An async generator that is the heartbeat of the entire system. It streams a model response, collects tool calls, executes them, appends results to the message history, and loops. Every interaction -- REPL, SDK, sub-agent, headless `--print` -- flows through this single function. It yields `Message` objects that the UI consumes. Its return type is a discriminated union called `Terminal` that encodes exactly why the loop stopped: normal completion, user abort, token budget exhaustion, stop hook intervention, max turns, or unrecoverable error. The generator pattern -- rather than callbacks or event emitters -- gives natural backpressure, clean cancellation, and typed terminal states. Chapter 5 covers the loop's internals in full.
+**1. 查询循环（Query Loop）** (`query.ts`, ~1,700 行)。这是一个异步生成器（async generator），也是整个系统的心跳。它以流式方式接收模型响应，收集工具调用，执行这些调用，将结果追加到消息历史中，然后进入下一次循环。所有的交互——无论是 REPL、SDK、子 Agent，还是无头模式下的 `--print`——都流经这同一个函数。它产出（yield）供 UI 消费的 `Message` 对象。其返回类型是一个名为 `Terminal` 的可辨识联合类型（discriminated union），精确编码了循环停止的原因：正常完成、用户中止、Token 预算耗尽、Stop 钩子干预、达到最大轮次或不可恢复的错误。相比于回调或事件发射器，生成器模式提供了天然的反压机制（backpressure）、优雅的取消操作以及类型安全的终态。第5章将全面剖析该循环的内部机制。
 
-**2. The Tool System** (`Tool.ts`, `tools.ts`, `services/tools/`). A tool is anything the agent can do in the world: read a file, run a shell command, edit code, search the web. That simplicity of purpose hides significant machinery. Each tool implements a rich interface covering identity, schema, execution, permissions, and rendering. Tools are not just functions -- they carry their own permission logic, concurrency declarations, progress reporting, and UI rendering. The system partitions tool calls into concurrent and serial batches, and a streaming executor starts concurrency-safe tools before the model even finishes its response. Chapter 6 covers the full tool interface and execution pipeline.
+**2. 工具系统（Tool System）** (`Tool.ts`, `tools.ts`, `services/tools/`)。工具即 Agent 能在外部世界中执行的任何操作：读取文件、运行 Shell 命令、编辑代码、搜索网页等。这种目标上的简洁性掩盖了其背后复杂的机制。每个工具都实现了一个丰富的接口，涵盖身份标识、Schema 定义、执行逻辑、权限控制和渲染展示。工具不仅仅是函数——它们还携带自身的权限逻辑、并发声明、进度上报和 UI 渲染能力。系统将工具调用划分为并发批次和串行批次，且流式执行器（streaming executor）会在模型尚未完成响应之前就提前启动那些并发安全的工具。第6章将详述完整的工具接口与执行流水线。
 
-**3. Tasks** (`Task.ts`, `tasks/`). Tasks are background work units -- primarily sub-agents. They follow a state machine: `pending -> running -> completed | failed | killed`. The `AgentTool` spawns a new `query()` generator with its own message history, tool set, and permission mode. Tasks give Claude Code its recursive capability: an agent can delegate to sub-agents, which can delegate further.
+**3. 任务（Tasks）** (`Task.ts`, `tasks/`)。任务是后台工作单元——主要是子 Agent。它们遵循状态机模型：`pending -> running -> completed | failed | killed`。`AgentTool` 会生成一个新的 `query()` 生成器实例，该实例拥有独立的消息历史、工具集和权限模式。任务赋予了 Claude Code 递归能力：一个 Agent 可以委派任务给子 Agent，而子 Agent 还可以进一步委派。
 
-**4. State** (two layers). The system maintains state at two levels. A mutable singleton (`STATE`) holds ~80 fields of session-level infrastructure: working directory, model configuration, cost tracking, telemetry counters, session ID. It is set once at startup and mutated directly -- no reactivity. A minimal reactive store (34 lines, Zustand-shaped) drives the UI: messages, input mode, tool approvals, progress indicators. The separation is intentional: infrastructure state changes rarely and does not need to trigger re-renders; UI state changes constantly and must. Chapter 3 covers the two-tier architecture in depth.
+**4. 状态（State）**（双层结构）。系统在两个层级上维护状态。一个可变单例（`STATE`）保存了约 80 个会话级基础设施字段：工作目录、模型配置、成本追踪、遥测计数器、会话 ID 等。它在启动时设置一次，随后直接修改——不具备响应式特性。一个极简的响应式存储（34 行代码，类 Zustand 风格）驱动 UI 更新：消息列表、输入模式、工具审批、进度指示器等。这种分离是有意为之的：基础设施状态变更频率低，无需触发重渲染；而 UI 状态变化频繁，必须触发重渲染。第3章将深入探讨这种双层架构。
 
-**5. Memory** (`memdir/`). The agent's persistent context across sessions. Three tiers: project-level (`CLAUDE.md` files in the repo), user-level (`~/.claude/MEMORY.md`), and team-level (shared via symlinks). At session start, the system scans for all memory files, parses frontmatter, and an LLM selects which memories are relevant to the current conversation. Memory is how Claude Code "remembers" your codebase conventions, architectural decisions, and debugging history.
+**5. 记忆（Memory）** (`memdir/`)。这是 Agent 跨会话的持久化上下文。分为三个层级：项目级（仓库中的 `CLAUDE.md` 文件）、用户级（`~/.claude/MEMORY.md`）和团队级（通过符号链接共享）。在会话开始时，系统会扫描所有记忆文件，解析 frontmatter，并由 LLM 筛选出与当前对话相关的记忆内容。记忆机制使 Claude Code 能够“记住”你的代码库规范、架构决策和调试历史。
 
-**6. Hooks** (`hooks/`, `utils/hooks/`). User-defined lifecycle interceptors that fire at 27 distinct events across 4 execution types: shell commands, single-shot LLM prompts, multi-turn agent conversations, and HTTP webhooks. Hooks can block tool execution, modify inputs, inject additional context, or short-circuit the entire query loop. The permission system itself is partially implemented through hooks -- `PreToolUse` hooks can deny tool calls before the interactive permission prompt ever fires.
+**6. 钩子（Hooks）** (`hooks/`, `utils/hooks/`)。用户自定义的生命周期拦截器，可在 4 种执行类型的 27 个不同事件点触发：Shell 命令、单次 LLM 提示、多轮 Agent 对话以及 HTTP Webhook。钩子可以阻断工具执行、修改输入、注入额外上下文，甚至短路整个查询循环。权限系统本身也部分通过钩子实现——`PreToolUse` 钩子可以在交互式权限弹窗出现之前就拒绝工具调用。
 
 ---
 
-## The Golden Path: From Keystroke to Output
+## 黄金路径：从按键到输出
 
-Trace a single request through the system. The user types "add error handling to the login function" and presses Enter.
+让我们追踪一个请求在系统中的完整流转。用户输入“为登录函数添加错误处理”并按下回车键。
 
 ```mermaid
 sequenceDiagram
-    participant U as User/REPL
-    participant Q as Query Loop
-    participant M as Model API
+    participant U as 用户/REPL
+    participant Q as 查询循环
+    participant M as 模型 API
     participant SE as StreamingToolExecutor
-    participant T as Tool System
-    participant R as Renderer
+    participant T as 工具系统
+    participant R as 渲染器
 
     U->>Q: UserMessage
-    Q->>Q: Token count check (auto-compact if needed)
-    Q->>M: callModel() streams request
-    M-->>Q: Tokens stream back
-    M-->>SE: Detects tool_use blocks
-    SE->>T: Start concurrency-safe tools early
-    T-->>SE: Results (may finish before model)
-    M-->>Q: Response complete
-    Q->>T: Execute remaining tools (serial/concurrent)
-    T->>T: Validate → Hooks → Permissions → Execute
+    Q->>Q: Token 计数检查（必要时自动压缩）
+    Q->>M: callModel() 流式发起请求
+    M-->>Q: Token 流式返回
+    M-->>SE: 检测到 tool_use 块
+    SE->>T: 提前启动并发安全工具
+    T-->>SE: 返回结果（可能在模型完成前结束）
+    M-->>Q: 响应完成
+    Q->>T: 执行剩余工具（串行/并发）
+    T->>T: 校验 → 钩子 → 权限 → 执行
     T-->>Q: ToolResultMessages
     Q->>R: Yield Messages
-    R->>U: Terminal output
-    Q->>Q: Stop check: more tool calls? Continue loop
+    R->>U: 终端输出
+    Q->>Q: 停止检查：还有工具调用吗？继续循环
 ```
 
-Three things to notice about this flow.
+关于此流程，有三点值得注意。
 
-First, the query loop is a generator, not a callback chain. The REPL pulls messages from it via `for await`, which means backpressure is natural -- if the UI cannot keep up, the generator pauses. This is a deliberate choice over event emitters or observable streams.
+首先，查询循环是一个生成器，而非回调链。REPL 通过 `for await` 从中拉取消息，这意味着反压是天然的——如果 UI 处理不过来，生成器就会暂停。这是相对于事件发射器或 Observable 流的刻意选择。
 
-Second, tool execution overlaps with model streaming. The `StreamingToolExecutor` does not wait for the model to finish before starting concurrency-safe tools. A `Read` call can complete and return its results while the model is still generating the rest of its response. This is speculative execution -- if the model's final output invalidates the tool call (rare but possible), the result is discarded.
+其次，工具执行与模型流式输出是重叠进行的。`StreamingToolExecutor` 不会等待模型完全响应后再启动并发安全的工具。一个 `Read` 调用可以在模型仍在生成其余响应时就已完成并返回结果。这是一种推测执行（speculative execution）——如果模型的最终输出使该工具调用失效（虽罕见但有可能），则该结果会被丢弃。
 
-Third, the entire loop is re-entrant. When the model makes tool calls, the results are appended to the message history, and the loop calls the model again with the updated context. There is no separate "tool result handling" phase -- it is all one loop. The model decides when it is done by simply not making any more tool calls.
+第三，整个循环是可重入的（re-entrant）。当模型发起工具调用时，结果会被追加到消息历史中，循环随即带着更新后的上下文再次调用模型。这里不存在独立的“工具结果处理”阶段——一切都在这同一个循环中完成。模型只需不再生成工具调用，即表示任务完成。
 
 ---
 
-## The Permission System
+## 权限系统
 
-Claude Code runs arbitrary shell commands on your machine. It edits your files. It can spawn sub-processes, make network requests, and modify your git history. Without a permission system, this is a security catastrophe.
+Claude Code 会在你的机器上执行任意 Shell 命令、编辑你的文件、生成子进程、发起网络请求，甚至修改你的 Git 历史。如果没有权限系统，这将是一场安全灾难。
 
-The system defines seven permission modes, ordered from most to least permissive:
+系统定义了七种权限模式，按宽松程度从高到低排列：
 
-| Mode | Behavior |
+| 模式 | 行为 |
 |------|----------|
-| `bypassPermissions` | Everything allowed. No checks. Internal/testing only. |
-| `dontAsk` | All allowed, but still logged. No user prompts. |
-| `auto` | Transcript classifier (LLM) decides allow/deny. |
-| `acceptEdits` | File edits auto-approved; all other mutations prompt. |
-| `default` | Standard interactive mode. User approves each action. |
-| `plan` | Read-only. All mutations blocked. |
-| `bubble` | Escalate decision to parent agent (sub-agent mode). |
+| `bypassPermissions` | 允许一切操作。不做任何检查。仅限内部/测试使用。 |
+| `dontAsk` | 允许所有操作，但仍会记录日志。不弹出用户确认提示。 |
+| `auto` | 由转录分类器（LLM）决定允许或拒绝。 |
+| `acceptEdits` | 文件编辑自动批准；所有其他变更操作需弹窗确认。 |
+| `default` | 标准交互模式。用户需逐一批准每个操作。 |
+| `plan` | 只读模式。阻止所有变更操作。 |
+| `bubble` | 将决策权上报给父 Agent（子 Agent 模式）。 |
 
-When a tool call needs permission, the resolution follows a strict chain:
+当工具调用需要权限验证时，解析过程遵循严格的链路：
 
 ```mermaid
 flowchart TD
-    A["Tool call needs permission"] --> B{"Hook rule match?"}
-    B -->|Yes| C["Use hook decision"]
-    B -->|No| D{"tool.checkPermissions"}
-    D -->|allow/deny| E["Done"]
-    D -->|ask/passthrough| F{"Permission mode?"}
-    F -->|bypassPermissions/dontAsk| G["Allow"]
-    F -->|plan| H["Deny mutations"]
-    F -->|acceptEdits| I{"File write?"}
-    I -->|Yes| G
-    I -->|No| J["Prompt user"]
+    A["工具调用需要权限"] --> B{"匹配 Hook 规则?"}
+    B -->|是| C["采用 Hook 决策"]
+    B -->|否| D{"tool.checkPermissions"}
+    D -->|allow/deny| E["结束"]
+    D -->|ask/passthrough| F{"权限模式?"}
+    F -->|bypassPermissions/dontAsk| G["允许"]
+    F -->|plan| H["拒绝变更"]
+    F -->|acceptEdits| I{"文件写入?"}
+    I -->|是| G
+    I -->|否| J["提示用户"]
     F -->|default| J
-    F -->|auto| K["LLM classifier evaluates transcript"]
-    F -->|bubble| L["Escalate to parent agent"]
-    J --> M["User: allow once/session/always or deny"]
+    F -->|auto| K["LLM 分类器评估对话转录"]
+    F -->|bubble| L["上报至父 Agent"]
+    J --> M["用户选择：本次允许/本会话允许/始终允许 或 拒绝"]
 ```
 
-The `auto` mode deserves special attention. It runs a separate, lightweight LLM call that classifies the tool invocation against the conversation transcript. The classifier sees a compact representation of the tool input and decides whether the action is consistent with what the user asked for. This is the mode that lets Claude Code work semi-autonomously -- approving routine operations while flagging anything that looks like it deviates from the user's intent.
+`auto` 模式值得特别关注。它会发起一次独立的轻量级 LLM 调用，根据对话转录内容对工具调用进行分类判断。分类器看到的是工具输入的紧凑表示，并据此判断该操作是否符合用户的意图。正是这种模式让 Claude Code 能够半自主地工作——在批准常规操作的同时，标记出任何看似偏离用户意图的行为。
 
-Sub-agents default to `bubble` mode, which means they cannot approve their own dangerous actions. Permission requests propagate up to the parent agent or ultimately to the user. This prevents a sub-agent from silently running destructive commands that the user never saw.
+子 Agent 默认处于 `bubble` 模式，这意味着它们无权自行批准危险操作。权限请求会逐级上报至父 Agent，最终到达用户。这防止了子 Agent 在用户毫不知情的情况下静默执行破坏性命令。
 
 ---
 
-## Multi-Provider Architecture
+## 多提供商架构
 
-Claude Code talks to Claude through four different infrastructure paths, all transparent to the rest of the system.
+Claude Code 通过四种不同的基础设施路径与 Claude 通信，这对系统的其余部分完全透明。
 
 ```mermaid
 graph LR
-    F["getAnthropicClient()"] --> D["Direct API<br/>API key or OAuth"]
-    F --> B["AWS Bedrock<br/>AWS credentials + SSO"]
-    F --> V["Google Vertex AI<br/>Google Auth + caching"]
-    F --> A["Azure Foundry<br/>Azure credentials"]
+    F["getAnthropicClient()"] --> D["Direct API<br/>API Key 或 OAuth"]
+    F --> B["AWS Bedrock<br/>AWS 凭证 + SSO"]
+    F --> V["Google Vertex AI<br/>Google Auth + 缓存"]
+    F --> A["Azure Foundry<br/>Azure 凭证"]
     D --> SDK["Anthropic SDK Client"]
     B --> SDK
     V --> SDK
     A --> SDK
-    SDK --> CL["callModel() in query loop"]
+    SDK --> CL["查询循环中的 callModel()"]
 ```
 
-The key insight is that the Anthropic SDK provides wrapper classes for each cloud provider that present the same interface as the direct API client. The `getAnthropicClient()` factory reads environment variables and configuration to determine which provider to use, constructs the appropriate client, and returns it. From that point forward, `callModel()` and every other consumer treats it as a generic Anthropic client.
+关键洞察在于：Anthropic SDK 为每个云提供商提供了封装类，这些封装类对外呈现与 Direct API 客户端完全一致的接口。`getAnthropicClient()` 工厂函数读取环境变量和配置来确定使用哪个提供商，构建相应的客户端并返回。从此之后，`callModel()` 及所有其他消费方都将其视为通用的 Anthropic 客户端。
 
-Provider selection is determined at startup and stored in `STATE`. The query loop never checks which provider is active. This means switching from Direct API to Bedrock is a configuration change, not a code change -- the agent loop, tool system, and permission model are entirely provider-agnostic.
+提供商的选择在启动时确定并存储在 `STATE` 中。查询循环从不检查当前激活的是哪个提供商。这意味着从 Direct API 切换到 Bedrock 只是配置变更，而非代码变更——Agent 循环、工具系统和权限模型完全与提供商无关。
 
 ---
 
-## The Build System
+## 构建系统
 
-Claude Code ships as both an internal Anthropic tool and a public npm package. The same codebase serves both, with compile-time feature flags controlling what gets included.
+Claude Code 既作为 Anthropic 内部工具发布，也作为公开的 npm 包发布。同一套代码库服务于两者，通过编译时特性开关（feature flags）控制包含的内容。
 
 ```typescript
-// Conditional imports guarded by feature flags
+// 受特性开关保护的条件导入
 const reactiveCompact = feature('REACTIVE_COMPACT')
   ? require('./services/compact/reactiveCompact.js')
   : null
 ```
 
-The `feature()` function comes from `bun:bundle`, Bun's built-in bundler API. At build time, each feature flag resolves to a boolean literal. The bundler's dead code elimination then strips the `require()` call entirely when the flag is false -- the module is never loaded, never included in the bundle, and never shipped.
+`feature()` 函数来自 `bun:bundle`，即 Bun 内置的打包器 API。在构建时，每个特性开关都会被解析为布尔字面量。当开关为 false 时，打包器的死代码消除（dead code elimination）会将 `require()` 调用完全剥离——该模块永远不会被加载、不会被包含在产物中、也不会被发布。
 
-The pattern is consistent: a top-level `feature()` guard wrapping a `require()` call. The `require()` is used instead of `import` specifically because dynamic `require()` can be fully eliminated by the bundler when the guard is false, while dynamic `import()` cannot (it returns a Promise that the bundler must preserve).
+该模式是一致的：顶层用 `feature()` 守卫包裹 `require()` 调用。这里特意使用 `require()` 而非 `import`，是因为当守卫为 false 时，动态 `require()` 可以被打包器完全消除，而动态 `import()` 则不行（它返回一个 Promise，打包器必须保留）。
 
-There is an irony worth noting. The source maps published with early npm releases contained `sourcesContent` -- the full original TypeScript source, including the internal-only code paths. The feature flags successfully stripped the runtime code but left the source in the maps. This is how the Claude Code source became publicly readable.
+这里有一个值得注意的讽刺之处：早期 npm 版本发布的 Source Map 中包含了 `sourcesContent`——即完整的原始 TypeScript 源码，包括仅限内部使用的代码路径。特性开关成功剥离了运行时代码，却在 Source Map 中留下了源码。这正是 Claude Code 源码得以公开可读的原因。
 
 ---
 
-## How the Pieces Connect
+## 各组件如何连接
 
-The six abstractions form a dependency graph:
+这六个抽象构成了一个依赖图：
 
 ```mermaid
 graph TD
-    Memory -->|"loaded at session start,<br/>injected into system prompt"| QL["Query Loop"]
+    Memory -->|"会话启动时加载，<br/>注入系统提示词"| QL["查询循环"]
     User --> REPL --> QL
-    QL -->|tool calls| TS["Tool System"]
-    TS -->|tool results| QL
-    QL -->|spawns| Tasks
-    Tasks -->|own query loop| QL
-    Tasks -->|bubble permissions up| REPL
-    QL -->|fires| Hooks
-    Hooks -->|PreToolUse: can block| TS
-    Hooks -->|PostToolUse: can modify| TS
-    Hooks -->|Stop hooks: can end| QL
-    QL -->|reads/writes| State
-    State -->|STATE: bootstrap singleton| QL
-    State -->|AppState: reactive store| REPL
+    QL -->|工具调用| TS["工具系统"]
+    TS -->|工具结果| QL
+    QL -->|生成| Tasks
+    Tasks -->|自有查询循环| QL
+    Tasks -->|向上冒泡权限| REPL
+    QL -->|触发| Hooks
+    Hooks -->|PreToolUse: 可阻断| TS
+    Hooks -->|PostToolUse: 可修改| TS
+    Hooks -->|Stop hooks: 可终止| QL
+    QL -->|读写| State
+    State -->|STATE: 启动单例| QL
+    State -->|AppState: 响应式存储| REPL
 ```
 
-Memory feeds into the query loop as part of the system prompt. The query loop drives tool execution. Tool results feed back into the query loop as messages. Tasks are recursive query loops with isolated message histories. Hooks intercept the query loop at defined points. State is read and written by everything, with the reactive store bridging to the UI.
+记忆作为系统提示词的一部分注入查询循环。查询循环驱动工具执行。工具结果作为消息反馈回查询循环。任务是拥有隔离消息历史的递归查询循环。钩子在预定义的节点拦截查询循环。状态被所有组件读写，其中响应式存储负责桥接 UI。
 
-The circular dependency between the query loop and the tool system is the system's defining characteristic. The model generates tool calls. Tools execute and produce results. Results are appended to the message history. The model sees the results and decides what to do next. This cycle continues until the model stops generating tool calls or an external constraint (token budget, max turns, user abort) terminates it.
+查询循环与工具系统之间的循环依赖是该系统的决定性特征。模型生成工具调用；工具执行并产生结果；结果被追加到消息历史中；模型看到结果后决定下一步行动。这个循环持续进行，直到模型不再生成工具调用，或外部约束（Token 预算、最大轮次、用户中止）将其终止。
 
-Here is how they connect to the chapters that follow: the golden path from input to output is the thread that runs through the entire book. Chapter 2 traces how the system boots to the point where this path can execute. Chapter 3 explains the two-tier state architecture that the path reads and writes. Chapter 4 covers the API layer that the query loop calls. Each subsequent chapter zooms into one segment of the path you have just seen end-to-end.
+它们与后续章节的关联如下：从输入到输出的黄金路径是贯穿全书的主线。第2章追溯系统如何启动直至该路径可被执行。第3章解释该路径所读写的双层状态架构。第4章涵盖查询循环所调用的 API 层。后续每一章都将聚焦于你刚刚看到的端到端路径中的某一个片段。
 
 ---
 
-## Apply This
+## 实践应用
 
-If you are building an agentic system -- any system where an LLM decides what actions to take at runtime -- here are the patterns from Claude Code's architecture that transfer.
+如果你正在构建一个 Agent 系统——即任何由 LLM 在运行时自主决定采取何种操作的系统——以下是 Claude Code 架构中可迁移的模式。
 
-**The generator loop pattern.** Use an async generator as your agent loop, not callbacks or event emitters. The generator gives you natural backpressure (consumers pull at their own pace), clean cancellation (`.return()` on the generator), and a typed return value for terminal states. The problem it solves: in callback-based agent loops, it is difficult to know when the loop is "done" and why. Generators make termination a first-class part of the type system.
+**生成器循环模式。** 使用异步生成器作为你的 Agent 循环，而非回调或事件发射器。生成器为你提供天然的反压机制（消费方按自身节奏拉取数据）、优雅的取消操作（调用生成器的 `.return()`）以及用于终态的类型化返回值。它解决的问题是：在基于回调的 Agent 循环中，很难判断循环何时“完成”以及为何完成。生成器将终止条件提升为类型系统的一等公民。
 
-**The self-describing tool interface.** Every tool should declare its own concurrency safety, permission requirements, and rendering behavior. Do not put this logic in a central orchestrator that "knows about" each tool. The problem it solves: a central orchestrator becomes a god object that must be updated every time a tool is added. Self-describing tools scale linearly -- adding tool N+1 requires zero changes to existing code.
+**自描述的工具接口。** 每个工具都应声明自身的并发安全性、权限要求和渲染行为。不要将这些逻辑放在一个“了解”每个工具的中央编排器中。它解决的问题是：中央编排器会变成一个上帝对象（god object），每新增一个工具都需要更新它。自描述的工具可线性扩展——新增第 N+1 个工具无需对现有代码做任何修改。
 
-**Separate infrastructure state from reactive state.** Not all state needs to trigger UI updates. Session configuration, cost tracking, and telemetry belong in a plain mutable object. Message history, progress indicators, and approval queues belong in a reactive store. The problem it solves: making everything reactive adds subscription overhead and complexity to state that changes once at startup and is read a thousand times. Two tiers match two access patterns.
+**区分基础设施状态与响应式状态。** 并非所有状态都需要触发 UI 更新。会话配置、成本追踪和遥测数据应放在普通的可变对象中。消息历史、进度指示器和审批队列应放在响应式存储中。它解决的问题是：将所有状态都设为响应式会给那些仅在启动时变更一次、却被读取上千次的状态带来不必要的订阅开销和复杂性。两层架构对应两种访问模式。
 
-**Permission modes, not permission checks.** Define a small set of named modes (plan, default, auto, bypass) and resolve every permission decision through the mode. Do not scatter `if (isAllowed)` checks through tool implementations. The problem it solves: inconsistent permission enforcement. When every tool goes through the same mode-based resolution chain, you can reason about the system's security posture by knowing which mode is active.
+**权限模式，而非权限检查。** 定义一小组命名模式（plan、default、auto、bypass），并通过模式来解析每一个权限决策。不要在各个工具的实现中散落 `if (isAllowed)` 检查。它解决的问题是：权限执行不一致。当每个工具都经过相同的基于模式的解析链路时，你只需知道当前激活的模式，就能推断出整个系统的安全态势。
 
-**Recursive agent architecture via tasks.** Sub-agents should be new instances of the same agent loop with their own message history, not special-cased code paths. Permission escalation flows upward via `bubble` mode. The problem it solves: sub-agent logic that diverges from the main agent loop, leading to subtle differences in behavior and error handling. If the sub-agent is the same loop, it inherits all the same guarantees.
+**基于任务的递归 Agent 架构。** 子 Agent 应该是同一 Agent 循环的新实例，拥有独立的消息历史，而非特殊处理的代码路径。权限通过 `bubble` 模式向上冒泡。它解决的问题是：子 Agent 逻辑与主 Agent 循环发生分歧，导致行为和错误处理上的微妙差异。如果子 Agent 使用的是同一个循环，它就能继承所有相同的保障。

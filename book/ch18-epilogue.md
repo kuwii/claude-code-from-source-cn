@@ -1,135 +1,135 @@
-# Chapter 18: What We Learned
+# 第 18 章：我们学到了什么
 
-## Five Architectural Bets
+## 五个架构赌注
 
-Claude Code is not the only agentic system. It is not the first. But it made five architectural bets that distinguish it from the landscape of agent frameworks, and after nearly two thousand files and seventeen chapters, those bets deserve examination.
+Claude Code 并非唯一的 Agentic 系统，也不是第一个。但它做出了五个架构赌注，使其在众多 Agent 框架中脱颖而出。在经历了近两千个文件和十七章的探讨之后，这些赌注值得审视。
 
-### Bet 1: The Generator Loop Over Callbacks
+### 赌注 1：生成器循环优于回调机制
 
-Most agent frameworks give you a pipeline: define tools, register handlers, let the framework orchestrate. The developer writes callbacks. The framework decides when to call them.
+大多数 Agent 框架提供的是流水线模式：定义工具、注册处理器，然后由框架进行编排。开发者编写回调函数，而框架决定何时调用它们。
 
-Claude Code does the opposite. The `query()` function is an async generator -- the developer owns the loop. The model streams a response, the generator yields tool calls, the caller executes them, appends results, and the generator loops. There is one function, one data flow, one place where every interaction passes through. The 10 terminal states and 7 continuation states of the generator's return type encode every possible outcome. The loop is the system.
+Claude Code 反其道而行之。`query()` 函数是一个异步生成器（async generator）——循环的控制权掌握在开发者手中。模型流式输出响应，生成器 yield 出工具调用，调用方执行这些调用并将结果追加回去，然后生成器继续循环。只有一个函数、一条数据流、一个所有交互必经的节点。生成器返回类型中的 10 种终止状态和 7 种延续状态编码了所有可能的结果。循环即系统。
 
-The bet was that a single generator function, even one that grew to 1,700 lines, would be more comprehensible than a distributed callback graph. After studying the source, the bet paid off. When you want to understand why a session ended, you look at one function. When you want to add a new terminal state, you add one variant to one discriminated union. The type system enforces exhaustive handling. A callback architecture would scatter this logic across dozens of files, and the interactions between callbacks would be implicit rather than visible in the control flow.
+这个赌注的核心假设是：即使单个生成器函数膨胀到 1,700 行，它也比分散的回调图更易于理解。研读源码后证明这一赌注是正确的。当你想了解会话为何结束时，只需查看一个函数。当你想添加新的终止状态时，只需在一个可辨识联合类型（discriminated union）中增加一个变体。类型系统强制要求穷尽处理。如果采用回调架构，这些逻辑将散落在数十个文件中，回调之间的交互将是隐式的，而非显式体现在控制流中。
 
-### Bet 2: File-Based Memory Over Databases
+### 赌注 2：基于文件的记忆优于数据库
 
-Chapter 11 made the case in detail, but the architectural significance extends beyond memory. The decision to use plain Markdown files instead of SQLite, a vector database, or a cloud service was a bet on transparency over capability. A database would support richer queries, faster lookups, and transactional guarantees. Files provide none of that. What files provide is trust.
+第 11 章已详细论述了这一观点，但其架构意义远超记忆本身。选择使用纯 Markdown 文件而非 SQLite、向量数据库或云服务，本质上是在用能力换取透明度。数据库能支持更丰富的查询、更快的检索以及事务性保证，而文件无法提供这些。但文件提供了信任。
 
-A user who opens `~/.claude/projects/myapp/memory/MEMORY.md` in vim and sees exactly what the agent remembers about them has a fundamentally different relationship with the system than a user who must ask the agent "what do you remember?" and hope the answer is complete. The file-based design makes the agent's knowledge state externally observable, not just self-reported. This matters more than query performance. The LLM-powered recall system compensates for the storage simplicity with retrieval intelligence -- a Sonnet side-query selecting five relevant memories from a manifest is more precise than embedding similarity and requires zero infrastructure.
+当用户在 vim 中打开 `~/.claude/projects/myapp/memory/MEMORY.md`，并能确切看到 Agent 记住了关于他们的哪些内容时，他们与系统的关系就与那些必须询问 Agent“你记得什么？”并祈祷回答完整的用户有着本质不同。基于文件的设计使 Agent 的知识状态变得外部可观测，而不仅仅是自我报告。这比查询性能更重要。LLM 驱动的召回系统通过检索智能弥补了存储的简单性——Sonnet 侧查询从清单中筛选五条相关记忆，比嵌入相似度更精准，且无需任何基础设施。
 
-### Bet 3: Self-Describing Tools Over Central Orchestrators
+### 赌注 3：自描述工具优于中央编排器
 
-Agent frameworks typically provide a tool registry: you describe your tools in a central configuration, and the framework presents them to the model. Claude Code's tools describe themselves. Each `Tool` object carries its own name, description, input schema, prompt contribution, concurrency safety flag, and execution logic. The tool system's job is not to describe tools to the model -- it is to let tools describe themselves.
+Agent 框架通常提供一个工具注册表：你在中央配置中描述工具，然后由框架将其呈现给模型。而在 Claude Code 中，工具是自描述的。每个 `Tool` 对象都携带自己的名称、描述、输入 Schema、Prompt 贡献、并发安全标志和执行逻辑。工具系统的职责不是向模型描述工具——而是让工具自我描述。
 
-This bet pays off in extensibility. MCP tools (Chapter 15) become first-class citizens by implementing the same interface. A tool from an MCP server and a built-in tool are indistinguishable to the model. The system does not need a separate "MCP tool adapter" layer -- the wrapping produces a standard `Tool` object, and from that point forward, the existing tool pipeline handles it: permission checking, concurrent execution, result budgeting, hook interception.
+这一赌注在可扩展性上获得了回报。MCP 工具（第 15 章）通过实现相同的接口成为一等公民。对于模型而言，来自 MCP Server 的工具与内置工具没有区别。系统不需要单独的“MCP 工具适配器”层——封装过程会生成标准的 `Tool` 对象，此后现有的工具流水线即可对其进行处理：权限检查、并发执行、结果预算控制、Hook 拦截。
 
-### Bet 4: Fork Agents for Cache Sharing
+### 赌注 4：Fork Agent 以实现缓存共享
 
-Chapter 9 covered the fork mechanism: a sub-agent that starts with the parent's full conversation in its context window, sharing the parent's prompt cache. This is not a convenience optimization -- it is an architectural bet that the cache sharing model is worth the complexity of fork lifecycle management.
+第 9 章介绍了 Fork 机制：子 Agent 启动时在其上下文窗口中包含父 Agent 的完整对话，从而共享父 Agent 的 Prompt Cache。这不是单纯的便利性优化——而是一个架构赌注，即缓存共享模型的价值足以抵消 Fork 生命周期管理的复杂性。
 
-The alternative -- spawning a fresh agent with a summary of the conversation -- is simpler but expensive. Every fresh agent pays the full cost of processing its context from scratch. A forked agent gets the parent's cached prefix for free (a 90% discount on input tokens), making it economical to spawn agents for small tasks: memory extraction, code review, verification passes. The background memory extraction agent (Chapter 11) runs after every query loop turn, and its cost is marginal precisely because it shares the parent's cache. Without fork-based cache sharing, that agent would be prohibitively expensive.
+另一种方案——生成一个仅包含对话摘要的全新 Agent——虽然更简单但成本高昂。每个新 Agent 都要从零开始处理其上下文，付出全额成本。而 Forked Agent 可以免费获得父 Agent 的缓存前缀（Input Token 享受 90% 折扣），这使得为小型任务生成 Agent 变得经济可行：记忆提取、代码审查、验证流程。后台记忆提取 Agent（第 11 章）在每次查询循环轮次后运行，其成本之所以微乎其微，正是因为它共享了父 Agent 的缓存。如果没有基于 Fork 的缓存共享，该 Agent 的成本将高得令人望而却步。
 
-### Bet 5: Hooks Over Plugins
+### 赌注 5：Hooks 优于插件
 
-Most extensibility systems use plugins -- code that registers capabilities and runs within the host process. Claude Code uses hooks -- external processes that run at lifecycle points and communicate through exit codes and JSON on stdin/stdout.
+大多数扩展系统使用插件——即在宿主进程中注册并运行的代码。Claude Code 则使用 Hooks——在生命周期节点运行的外部进程，通过退出码以及 stdin/stdout 上的 JSON 进行通信。
 
-The bet is that process isolation is worth the overhead. A plugin can crash the host. A hook crashes its own process. A plugin can leak memory into the host's heap. A hook's memory dies with its process. A plugin requires an API surface that must be versioned and maintained. A hook requires stdin, stdout, and an exit code -- a protocol that has been stable since 1971.
+这一赌注认为进程隔离的价值高于其开销。插件可能导致宿主崩溃，而 Hook 只会导致自身进程崩溃。插件可能向宿主堆内存泄漏，而 Hook 的内存随其进程消亡。插件需要一套必须版本化和维护的 API 表面。而 Hook 只需要 stdin、stdout 和退出码——这套协议自 1971 年以来一直保持稳定。
 
-The overhead is real: spawning a process per hook invocation costs milliseconds that an in-process callback would not. The -70% fast path for internal callbacks (Chapter 12) shows that the system knows this cost matters. But for external hooks -- user scripts, team linters, enterprise policy servers -- the isolation guarantee makes the system safer to extend. An enterprise can deploy hook-based policy enforcement without worrying that a malformed hook script will crash their developers' sessions.
-
----
-
-## What Transfers, What Does Not
-
-Not every pattern in Claude Code generalizes. Some are consequences of scale, resources, or specific constraints that other agent builders may not share.
-
-### Patterns That Transfer to Any Agent
-
-**The generator loop pattern.** Any agent that needs to stream responses, handle tool calls, and manage multiple terminal states benefits from making the loop explicit rather than hiding it behind callbacks. The discriminated union return type -- encoding exactly why the loop stopped -- is a pattern that eliminates an entire class of "why did the agent stop?" debugging sessions.
-
-**File-based memory with LLM recall.** The specific implementation details are Claude Code's, but the principle -- simple storage combined with intelligent retrieval -- applies to any agent that needs to persist knowledge across sessions. The four-type taxonomy (user, feedback, project, reference) and the derivability test ("can this be re-derived from the current project state?") are reusable design heuristics.
-
-**Asymmetric read/write channels for remote execution.** When reads are high-frequency streams and writes are low-frequency RPCs, separating them is correct regardless of the specific transport protocol.
-
-**Bitmap pre-filters for search.** Any agent searching a large file index benefits from a 26-bit letter bitmap as a pre-filter. Four bytes per entry, one integer comparison per candidate -- the cost-to-benefit ratio is remarkable.
-
-**Prompt cache stability as an architectural concern.** If your agent uses an API with prompt caching, structuring the prompt with stable content first and volatile content last is not an optimization -- it is an architectural decision that determines your cost structure.
-
-### Patterns Specific to Claude Code's Scale
-
-**The forked terminal renderer.** Claude Code forked Ink and reimplemented the rendering pipeline with packed typed arrays, pool-based interning, and cell-level diffing because it needed 60fps streaming in a terminal. Most agents render to a web interface or a simple log output. The engineering investment only makes sense when terminal rendering is your primary UI and you are streaming at high frequency.
-
-**The 50+ startup profiling checkpoints.** Meaningful when you have hundreds of thousands of users and 0.5% sampling produces statistically significant data. For a smaller agent, a simpler timing system suffices.
-
-**Eight MCP transport types.** Claude Code supports stdio, SSE, HTTP, WebSocket, SDK, two IDE variants, and a Claude.ai proxy because it must integrate with every deployment topology. Most agents need stdio and HTTP.
-
-**The hooks snapshot security model.** Freezing hook configuration at startup and never re-reading it implicitly is a defense against a specific threat: malicious repository code modifying hooks after the user accepts the trust dialog. This matters when your agent runs in arbitrary repositories with untrusted `.claude/` configurations. An agent that only runs in trusted environments can use simpler hook management.
+开销是真实存在的：每次 Hook 调用都产生一个进程，这会消耗毫秒级的时间，而进程内回调则不会。内部回调的 -70% 快速路径（第 12 章）表明系统清楚这一成本的重要性。但对于外部 Hooks——用户脚本、团队 Linter、企业策略服务器——隔离保证使系统扩展更安全。企业可以部署基于 Hook 的策略执行机制，而无需担心格式错误的 Hook 脚本会导致开发者的会话崩溃。
 
 ---
 
-## The Cost of Complexity
+## 哪些可迁移，哪些不可迁移
 
-Nearly two thousand files. What does that buy, and what does it cost?
+并非 Claude Code 中的所有模式都具有普适性。有些是规模、资源或特定约束的产物，其他 Agent 构建者未必面临相同情况。
 
-The file count is misleading as a complexity metric. Much of it is test infrastructure, type definitions, configuration schemas, and the forked Ink renderer. The actual behavioral complexity concentrates in a small number of high-density files: `query.ts` (1,700 lines, the agent loop), `hooks.ts` (4,900 lines, the lifecycle interception system), `REPL.tsx` (5,000 lines, the interactive orchestrator), and the memory system's prompt building functions.
+### 可迁移至任何 Agent 的模式
 
-The complexity comes from three sources, each with a different character:
+**生成器循环模式。** 任何需要流式响应、处理工具调用和管理多种终止状态的 Agent，都能从显式循环中受益，而不是将其隐藏在回调之后。可辨识联合返回类型——精确编码循环停止的原因——是一种能够消除整类“为什么 Agent 停了？”调试问题的模式。
 
-**Protocol diversity.** Supporting five terminal keyboard protocols, eight MCP transport types, four remote execution topologies, and seven configuration scopes is inherently complex. Each additional protocol is a linear addition to the codebase, not an exponential one -- but the sum is large. This complexity is accidental in the Brooksian sense: it comes from the environment (terminal fragmentation, MCP transport evolution, remote deployment topologies), not from the problem being solved.
+**基于文件的记忆配合 LLM 召回。** 具体实现细节属于 Claude Code，但原则——简单存储结合智能检索——适用于任何需要跨会话持久化知识的 Agent。四类分类法（用户、反馈、项目、参考）和可推导性测试（“这能否从当前项目状态重新推导出来？”）是可复用的设计启发式方法。
 
-**Performance optimization.** The pool-based rendering, bitmap search pre-filters, sticky cache latches, and speculative tool execution each add complexity in exchange for measurable performance gains. This complexity is justified by measurement -- every optimization was preceded by profiling data that identified the bottleneck. The risk is that optimizations accumulate and interact in ways that make the hot paths harder to modify.
+**远程执行的非对称读写通道。** 当读取是高频流而写入是低频 RPC 时，无论具体传输协议如何，将它们分离都是正确的做法。
 
-**Behavioral tuning.** The memory system's prompt instructions, the staleness warnings, the verification protocol, the "ignore memory" anti-pattern instruction -- these are not code complexity. They are prompt complexity, and they carry a different maintenance burden. When the model's behavior changes between versions, prompt instructions that were carefully tuned through evals may need re-tuning. The eval infrastructure (referenced throughout the codebase as case numbers and eval scores) is the defense against regression, but it requires ongoing investment.
+**用于搜索的位图预过滤器。** 任何搜索大型文件索引的 Agent 都能从 26 位字母位图预过滤器中受益。每个条目四字节，每个候选项一次整数比较——性价比极高。
 
-The maintenance burden of this system is significant. A new engineer reading the codebase must understand not just the code paths but the eval outcomes that motivated specific prompt phrasings, the production incidents that motivated specific security checks, and the performance profiles that motivated specific optimizations. The code comments are thorough -- many include eval case numbers and before/after measurements -- but thorough comments in nearly two thousand files are themselves a reading burden.
+**Prompt Cache 稳定性作为架构考量。** 如果你的 Agent 使用支持 Prompt Caching 的 API，将稳定内容置于 Prompt 前面、易变内容置于后面就不再是优化——而是决定成本结构的架构决策。
 
----
+### Claude Code 特有的规模化模式
 
-## Where Agentic Systems Are Heading
+**Forked 终端渲染器。** Claude Code Fork 了 Ink 并使用紧凑的类型数组、基于池的内部化（interning）和单元格级 Diff 重写了渲染流水线，因为它需要在终端中实现 60fps 的流式渲染。大多数 Agent 渲染到 Web 界面或简单的日志输出。只有当终端渲染是你的主要 UI 且你需要高频流式输出时，这种工程投入才有意义。
 
-Four trends are visible from the patterns in Claude Code, and they point toward where the field is going.
+**50+ 启动分析检查点。** 当你拥有数十万用户且 0.5% 的采样就能产生统计显著数据时，这才有意义。对于较小的 Agent，简单的计时系统就足够了。
 
-### MCP as the Universal Protocol
+**八种 MCP 传输类型。** Claude Code 支持 stdio、SSE、HTTP、WebSocket、SDK、两种 IDE 变体和 Claude.ai 代理，因为它必须集成各种部署拓扑。大多数 Agent 只需要 stdio 和 HTTP。
 
-Chapter 15 described Claude Code as one of the most complete MCP clients. The significance is not Claude Code's implementation -- it is that MCP exists at all. A standardized protocol for tool discovery and invocation means that tools built for one agent work with any agent. The ecosystem effects are obvious: an MCP server for Postgres, once built, serves every agent that speaks MCP. The developer's investment in tool integration is portable.
-
-The implication for agent builders: if you are defining a custom tool protocol, you are probably making a mistake. MCP is good enough, it is getting better, and the ecosystem advantages of a standard protocol compound over time. Build an MCP client, contribute to the spec, and let the protocol evolve through community feedback.
-
-### Multi-Agent Coordination
-
-Claude Code's sub-agent system (Chapter 8), task coordination (Chapter 10), and fork mechanism (Chapter 9) are early implementations of multi-agent patterns. They solve specific problems -- cache sharing, parallel exploration, structured verification -- but they also reveal the fundamental challenge: coordination overhead.
-
-Every message between agents consumes tokens. Every fork shares a cache but adds a conversation branch that the parent must eventually reconcile. The Task system's state machine (queued, running, completed, failed, cancelled) is coordination machinery that adds complexity without adding capability. As agents become more capable, the pressure will shift from "how do we coordinate multiple agents?" to "how do we make one agent capable enough that coordination is unnecessary?"
-
-The current evidence suggests both approaches will coexist. Simple tasks will use single agents. Complex tasks will use coordinated multi-agent systems. The engineering challenge is making the coordination overhead low enough that the crossover point favors multi-agent for genuinely parallel work, not just for tasks that are complex.
-
-### Persistent Memory
-
-Claude Code's memory system is version 1 of persistent agent memory. The file-based design, the four-type taxonomy, the LLM-powered recall, the staleness system, and the KAIROS mode for long-running sessions are all first-generation solutions to a problem that will evolve significantly.
-
-Future memory systems will likely add structured retrieval (the current system retrieves whole files; future systems might retrieve specific facts), cross-project transfer learning (user preferences that apply everywhere, project conventions that do not), and collaborative memory (Chapter 11's team memory is a first step, but the sync, conflict resolution, and access control are minimal).
-
-The open question is whether the file-based approach scales. At 200 memories per project, it works. At 2,000 memories per project, the Sonnet side-query's manifest becomes too large, the consolidation becomes too expensive, and the index exceeds its caps. The architectural bet on files-over-databases will face its hardest test as usage grows.
-
-### Autonomous Operation
-
-The KAIROS mode, the background memory extraction agent, the auto-dream consolidation, the speculative tool execution -- these are all steps toward autonomous operation. The agent does useful work without being asked: it remembers what you forgot to tell it to remember, it consolidates its own knowledge while you sleep, it starts executing the next tool before the current response is complete.
-
-The trajectory is clear. Future agents will be less reactive and more proactive. They will notice patterns the user has not described, suggest corrections the user has not requested, and maintain their own knowledge without explicit `/remember` commands. Claude Code's memory system, with its background extraction safety net and its prompt-engineered "what to save" heuristics, is the prototype for this future.
-
-The constraint is trust. Autonomous operation requires the user to trust that the agent will do the right thing when unattended. The file-based memory, the observable hook system, the staleness warnings, the permission dialogs -- all of these exist because trust must be earned, not assumed. The path to more autonomous agents runs through more transparent agents.
+**Hooks 快照安全模型。** 在启动时冻结 Hook 配置且不再隐式重新读取，是为了防御特定威胁：恶意仓库代码在用户接受信任对话框后修改 Hooks。当你的 Agent 在包含不受信任 `.claude/` 配置的任意仓库中运行时，这一点至关重要。仅在受信任环境中运行的 Agent 可以使用更简单的 Hook 管理。
 
 ---
 
-## Closing
+## 复杂性的代价
 
-Seventeen chapters. Six core abstractions. A generator loop at the center, tools extending outward, memory reaching backward through time, hooks guarding the perimeter, a rendering engine translating it all into characters on a screen, and MCP connecting it to the world beyond the codebase.
+近两千个文件。这换来了什么，又付出了什么？
 
-The deepest pattern in Claude Code is not any single technique. It is the recurring decision to push complexity to the boundaries. The rendering system pushes complexity to the pools and the diff -- inside the pipeline, everything is integer comparisons. The input system pushes complexity to the tokenizer and the keybinding resolver -- inside the handlers, everything is typed actions. The memory system pushes complexity to the write protocol and the recall selector -- inside the conversation, everything is context. The agent loop pushes complexity to the terminal states and the tool system -- inside the loop, it is just: stream, collect, execute, append, repeat.
+文件数量作为复杂性指标具有误导性。其中大部分是测试基础设施、类型定义、配置 Schema 和 Fork 的 Ink 渲染器。实际的行为复杂性集中在少数高密度文件中：`query.ts`（1,700 行，Agent 循环）、`hooks.ts`（4,900 行，生命周期拦截系统）、`REPL.tsx`（5,000 行，交互式编排器）以及记忆系统的 Prompt 构建函数。
 
-Each boundary absorbs chaos and exports order. Raw bytes become `ParsedKey`. Markdown files become recalled memories. MCP JSON-RPC becomes `Tool` objects. Hook exit codes become permission decisions. On one side of each boundary, the world is messy -- five keyboard protocols, fragile OAuth servers, stale memories, untrusted repository hooks. On the other side, the world is typed, bounded, and exhaustively handled.
+复杂性来自三个方面，各具不同特征：
 
-If you are building an agentic system, this is the transferable lesson. Not the specific techniques -- you may not need pool-based rendering or KAIROS mode or eight MCP transports. But the principle: define your boundaries, absorb complexity there, and keep everything between them clean. The boundaries are where the engineering is hard. The interior is where the engineering is pleasant. Design for pleasant interiors, and invest your complexity budget at the edges.
+**协议多样性。** 支持五种终端键盘协议、八种 MCP 传输类型、四种远程执行拓扑和七种配置作用域本身就非常复杂。每增加一种协议都是对代码库的线性增加，而非指数级增加——但总和很大。这种复杂性在 Brooks 意义上是偶然的：它来自环境（终端碎片化、MCP 传输演进、远程部署拓扑），而非来自要解决的问题本身。
 
-The source code is open. The crab has the map in its claw. Go read it.
+**性能优化。** 基于池的渲染、位图搜索预过滤器、粘性缓存锁存器和推测性工具执行，每一项都以增加复杂性为代价换取可衡量的性能提升。这种复杂性是由度量证明合理的——每项优化之前都有识别瓶颈的性能分析数据。风险在于优化会累积并以使热路径更难修改的方式相互作用。
+
+**行为调优。** 记忆系统的 Prompt 指令、陈旧警告、验证协议、“忽略记忆”反模式指令——这些不是代码复杂性。它们是 Prompt 复杂性，带来不同的维护负担。当模型行为在版本间发生变化时，通过 Eval 精心调优的 Prompt 指令可能需要重新调整。Eval 基础设施（在整个代码库中以用例编号和 Eval 分数引用）是防止回归的防线，但它需要持续投入。
+
+该系统的维护负担是沉重的。阅读代码库的新工程师不仅要理解代码路径，还要理解促使特定 Prompt 措辞的 Eval 结果、促使特定安全检查的生产事故，以及促使特定优化的性能分析数据。代码注释很详尽——许多包含 Eval 用例编号和优化前后的测量值——但在近两千个文件中，详尽的注释本身就是一种阅读负担。
+
+---
+
+## Agentic 系统的未来走向
+
+从 Claude Code 的模式中可以观察到四个趋势，它们指明了该领域的发展方向。
+
+### MCP 作为通用协议
+
+第 15 章将 Claude Code 描述为最完整的 MCP Client 之一。其重要性不在于 Claude Code 的实现——而在于 MCP 的存在。标准化的工具发现和调用协议意味着为一个 Agent 构建的工具可以与任何 Agent 配合使用。生态效应显而易见：一旦构建了 Postgres 的 MCP Server，它就可以服务于所有支持 MCP 的 Agent。开发者在工具集成上的投资是可移植的。
+
+对 Agent 构建者的启示：如果你正在定义自定义工具协议，你可能犯了一个错误。MCP 已经足够好，而且还在不断改进，标准协议的生态优势会随时间复合增长。构建一个 MCP Client，为规范做贡献，让协议通过社区反馈演进。
+
+### 多 Agent 协调
+
+Claude Code 的子 Agent 系统（第 8 章）、任务协调（第 10 章）和 Fork 机制（第 9 章）是多 Agent 模式的早期实现。它们解决了特定问题——缓存共享、并行探索、结构化验证——但也揭示了根本挑战：协调开销。
+
+Agent 之间的每条消息都会消耗 Token。每个 Fork 虽然共享缓存，但会增加一个父 Agent 最终必须调和的对话分支。Task 系统的状态机（queued、running、completed、failed、cancelled）是增加了复杂性但未增加能力的协调机制。随着 Agent 能力增强，压力将从“我们如何协调多个 Agent？”转移到“我们如何让单个 Agent 足够强大以至于不需要协调？”
+
+目前的证据表明这两种方法将共存。简单任务使用单 Agent。复杂任务使用协调的多 Agent 系统。工程挑战在于将协调开销降低到足够低，使得交叉点有利于真正并行工作的多 Agent 模式，而不仅仅是因为任务复杂。
+
+### 持久化记忆
+
+Claude Code 的记忆系统是持久化 Agent 记忆的 v1 版本。基于文件的设计、四类分类法、LLM 驱动的召回、陈旧系统以及用于长时间运行会话的 KAIROS 模式，都是针对一个将显著演进的问题的第一代解决方案。
+
+未来的记忆系统可能会增加结构化检索（当前系统检索整个文件；未来系统可能检索特定事实）、跨项目迁移学习（适用于所有地方的用户偏好、不适用的项目约定）以及协作记忆（第 11 章的团队记忆是第一步，但同步、冲突解决和访问控制都很基础）。
+
+悬而未决的问题是文件方式是否具备可扩展性。在每个项目 200 条记忆时，它是有效的。在每个项目 2,000 条记忆时，Sonnet 侧查询的清单变得过大，整合变得过于昂贵，索引超出上限。随着使用量增长，文件优于数据库的架构赌注将面临最严峻的考验。
+
+### 自主运行
+
+KAIROS 模式、后台记忆提取 Agent、自动梦境整合、推测性工具执行——这些都是迈向自主运行的步骤。Agent 在被要求之前就做有用的工作：它记住你忘记让它记住的内容，在你睡觉时整合自己的知识，在当前响应完成之前就开始执行下一个工具。
+
+轨迹是清晰的。未来的 Agent 将更少被动反应，更多主动出击。它们会发现用户未描述的模式，建议用户未请求的修正，并在没有显式 `/remember` 命令的情况下维护自己的知识。Claude Code 的记忆系统，凭借其后台提取安全网和经过 Prompt Engineering 的“保存什么”启发式规则，是这一未来的原型。
+
+约束在于信任。自主运行要求用户信任 Agent 在无人值守时会做正确的事。基于文件的记忆、可观测的 Hook 系统、陈旧警告、权限对话框——所有这些存在都是因为信任必须被赢得，而非被假定。通往更自主 Agent 的道路，必经更透明的 Agent。
+
+---
+
+## 结语
+
+十七章。六个核心抽象。中心是一个生成器循环，工具向外延伸，记忆向后追溯时间，Hooks 守卫边界，渲染引擎将一切转化为屏幕上的字符，MCP 将其连接到代码库之外的世界。
+
+Claude Code 中最深刻的模式并非任何单一技术。而是反复出现的将复杂性推向边界的决策。渲染系统将复杂性推向池和 Diff——在流水线内部，一切都是整数比较。输入系统将复杂性推向 Tokenizer 和键绑定解析器——在处理器内部，一切都是类型化的 Action。记忆系统将复杂性推向写入协议和召回选择器——在对话内部，一切都是上下文。Agent 循环将复杂性推向终止状态和工具系统——在循环内部，仅仅是：流式输出、收集、执行、追加、重复。
+
+每个边界吸收混乱并导出秩序。原始字节变为 `ParsedKey`。Markdown 文件变为被召回的记忆。MCP JSON-RPC 变为 `Tool` 对象。Hook 退出码变为权限决策。在每个边界的一侧，世界是混乱的——五种键盘协议、脆弱的 OAuth 服务器、陈旧的记忆、不受信任的仓库 Hooks。在另一侧，世界是类型化的、有界的且被穷尽处理的。
+
+如果你正在构建 Agentic 系统，这就是可迁移的经验教训。不是具体的技术——你可能不需要基于池的渲染、KAIROS 模式或八种 MCP 传输。而是原则：定义你的边界，在那里吸收复杂性，并保持边界之间的一切整洁。边界是工程艰难之处。内部是工程愉悦之处。为愉悦的内部而设计，将你的复杂性预算投入到边缘。
+
+源代码是开放的。寻宝图就在你手中。去读吧。

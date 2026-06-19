@@ -1,99 +1,99 @@
-# Chapter 16: Remote Control and Cloud Execution
+# 第 16 章：远程控制与云端执行
 
-## The Agent Reaches Beyond Localhost
+## Agent 突破 Localhost 限制
 
-Every chapter so far has assumed that Claude Code runs on the same machine where the code lives. The terminal is local. The filesystem is local. The model responses stream back to a process that owns both the keyboard and the working directory.
+到目前为止，每一章都假设 Claude Code 运行在代码所在的同一台机器上。终端是本地的，文件系统是本地的，模型响应流式传输回一个同时拥有键盘和工作目录控制权的进程。
 
-That assumption breaks the moment you want to control Claude Code from a browser, run it inside a cloud container, or expose it as a service on your LAN. The agent needs a way to receive instructions from a web browser, a mobile app, or an automated pipeline -- forward permission prompts to someone who is not sitting at the terminal, and tunnel its API traffic through infrastructure that might inject credentials or terminate TLS on the agent's behalf.
+一旦你想从浏览器控制 Claude Code、在云容器中运行它，或将其作为服务暴露在局域网（LAN）中，这个假设就会被打破。Agent 需要一种方式来接收来自 Web 浏览器、移动应用或自动化流水线的指令——将权限提示转发给未坐在终端前的人，并通过可能代表 Agent 注入凭据或终止 TLS 的基础设施来隧道传输其 API 流量。
 
-Claude Code solves this with four systems, each addressing a different topology:
+Claude Code 通过四个系统解决了这个问题，每个系统针对不同的拓扑结构：
 
 <div class="diagram-grid">
 
 ```mermaid
 graph TB
-    subgraph "Bridge v1: Poll-Based"
-        CLI1[Local CLI] -->|Register| ENV[Environments API]
-        ENV -->|Poll for work| CLI1
-        CLI1 -->|"WebSocket reads<br/>HTTP POST writes"| WEB1[Web Interface]
+    subgraph "Bridge v1：基于轮询"
+        CLI1[本地 CLI] -->|注册| ENV[Environments API]
+        ENV -->|轮询任务| CLI1
+        CLI1 -->|"WebSocket 读取<br/>HTTP POST 写入"| WEB1[Web 界面]
     end
 ```
 
 ```mermaid
 graph TB
-    subgraph "Bridge v2: Direct Sessions"
-        CLI2[Local CLI] -->|Create session| SESSION[Session API]
-        CLI2 -->|"SSE reads<br/>CCRClient writes"| WEB2[Web Interface]
+    subgraph "Bridge v2：直接会话"
+        CLI2[本地 CLI] -->|创建会话| SESSION[Session API]
+        CLI2 -->|"SSE 读取<br/>CCRClient 写入"| WEB2[Web 界面]
     end
 ```
 
 ```mermaid
 graph TB
     subgraph "Direct Connect"
-        CLIENT[Remote Client] -->|"WebSocket (cc:// URL)"| SERVER[Local CLI Server]
+        CLIENT[远程客户端] -->|"WebSocket (cc:// URL)"| SERVER[本地 CLI 服务器]
     end
 ```
 
 ```mermaid
 graph TB
-    subgraph "Upstream Proxy"
-        CONTAINER[CCR Container] -->|WebSocket tunnel| INFRA[Anthropic Infrastructure]
-        INFRA -->|Credential injection| UPSTREAM[Third-Party APIs]
+    subgraph "上游代理"
+        CONTAINER[CCR 容器] -->|WebSocket 隧道| INFRA[Anthropic 基础设施]
+        INFRA -->|凭据注入| UPSTREAM[第三方 API]
     end
 ```
 
 </div>
 
-These systems share a common design philosophy: reads and writes are asymmetric, reconnection is automatic, and failures degrade gracefully.
+这些系统共享一个共同的设计理念：读写是不对称的，重连是自动的，故障能够优雅降级。
 
 ---
 
-## Bridge v1: Poll, Dispatch, Spawn
+## Bridge v1：轮询、分发、生成子进程
 
-The v1 bridge is the environment-based remote control system. When a developer runs `claude remote-control`, the CLI registers with the Environments API, polls for work, and spawns a child process per session.
+v1 bridge 是基于环境的远程控制系统。当开发者运行 `claude remote-control` 时，CLI 会向 Environments API 注册，轮询任务，并为每个会话生成一个子进程。
 
-Before registration, a gauntlet of pre-flight checks runs: runtime feature gate, OAuth token validation, organization policy check, dead token detection (a cross-process backoff after three consecutive failures with the same expired token), and proactive token refresh that eliminates roughly 9% of registrations that would otherwise fail on the first attempt.
+在注册之前，会运行一系列预检程序：运行时特性门控、OAuth token 验证、组织策略检查、死 token 检测（同一过期 token 连续三次失败后的跨进程退避），以及主动 token 刷新（这消除了大约 9% 原本会在首次尝试时失败的注册）。
 
-Once registered, the bridge enters a long-poll loop. Work items arrive as sessions (with a `secret` field containing session tokens, API base URL, MCP configs, and environment variables) or healthchecks. The bridge throttles "no work" log messages to every 100 empty polls.
+注册成功后，bridge 进入长轮询循环。工作项以会话（包含带有 session token、API base URL、MCP 配置和环境变量的 `secret` 字段）或健康检查的形式到达。bridge 会将“无任务”日志消息节流为每 100 次空轮询记录一次。
 
-Each session spawns a child Claude Code process communicating via NDJSON on stdin/stdout. Permission requests flow through the bridge transport to the web interface where the user approves or denies. The round-trip must complete within roughly 10-14 seconds.
-
----
-
-## Bridge v2: Direct Sessions and SSE
-
-The v2 bridge eliminates the entire Environments API layer -- no registration, no polling, no acknowledgment, no heartbeat, no deregistration. The motivation: v1 required the server to know the machine's capabilities before dispatching work. V2 collapses the lifecycle to three steps:
-
-1. **Create session**: `POST /v1/code/sessions` with OAuth credentials.
-2. **Connect bridge**: `POST /v1/code/sessions/{id}/bridge`. Returns a `worker_jwt`, `api_base_url`, and `worker_epoch`. Each `/bridge` call bumps the epoch -- it IS the registration.
-3. **Open transport**: SSE for reads, `CCRClient` for writes.
-
-The transport abstraction (`ReplBridgeTransport`) unifies v1 and v2 behind a common interface, so message handling does not need to know which generation it is talking to.
-
-When the SSE connection drops due to a 401, the transport rebuilds with fresh credentials from a new `/bridge` call while preserving the sequence number cursor -- no messages are lost. The write path uses per-instance `getAuthToken` closures instead of process-wide environment variables, preventing JWT leakage across concurrent sessions.
-
-### The FlushGate
-
-A subtle ordering problem: the bridge needs to send conversation history while accepting live writes from the web interface. If a live write arrives during the history flush, messages could be delivered out of order. The `FlushGate` queues live writes during the flush POST and drains them in order when it completes.
-
-### Token Refresh and Epoch Management
-
-The v2 bridge proactively refreshes worker JWTs before expiry. A new epoch tells the server this is the same worker with fresh credentials. Epoch mismatches (409 responses) are handled aggressively: both connections close and an exception unwinds the caller, preventing split-brain scenarios.
+每个会话都会生成一个子 Claude Code 进程，通过 stdin/stdout 上的 NDJSON 进行通信。权限请求通过 bridge 传输层流向 Web 界面，由用户批准或拒绝。整个往返必须在大约 10-14 秒内完成。
 
 ---
 
-## Message Routing and Echo Deduplication
+## Bridge v2：直接会话与 SSE
 
-Both bridge generations share `handleIngressMessage()` as the central router:
+v2 bridge 移除了整个 Environments API 层——无需注册、无需轮询、无需确认、无需心跳、无需注销。动机在于：v1 要求服务器在分发任务前了解机器的能力。V2 将生命周期简化为三个步骤：
 
-1. Parse JSON, normalize control message keys.
-2. Route `control_response` to permission handler, `control_request` to request handler.
-3. Check UUID against `recentPostedUUIDs` (echo dedup) and `recentInboundUUIDs` (re-delivery dedup).
-4. Forward validated user messages.
+1. **创建会话**：使用 OAuth 凭据 `POST /v1/code/sessions`。
+2. **连接 bridge**：`POST /v1/code/sessions/{id}/bridge`。返回 `worker_jwt`、`api_base_url` 和 `worker_epoch`。每次 `/bridge` 调用都会递增 epoch——它本身就是注册。
+3. **打开传输通道**：SSE 用于读取，`CCRClient` 用于写入。
 
-### BoundedUUIDSet: O(1) Lookup, O(capacity) Memory
+传输抽象层（`ReplBridgeTransport`）在统一接口后封装了 v1 和 v2，因此消息处理逻辑无需知道它正在与哪个版本通信。
 
-The bridge has an echo problem -- messages may echo back on the read stream or be delivered twice during transport switches. `BoundedUUIDSet` is a FIFO-bounded set backed by a circular buffer:
+当 SSE 连接因 401 断开时，传输层会使用来自新 `/bridge` 调用的新凭据重建连接，同时保留序列号游标——不会丢失任何消息。写入路径使用每个实例独立的 `getAuthToken` 闭包，而不是进程级的环境变量，防止 JWT 在并发会话间泄漏。
+
+### FlushGate
+
+一个微妙的顺序问题：bridge 需要在接受来自 Web 界面的实时写入的同时发送对话历史。如果在历史刷新期间收到实时写入，消息可能会乱序传递。`FlushGate` 在刷新 POST 期间将实时写入排队，并在完成后按顺序排空它们。
+
+### Token 刷新与 Epoch 管理
+
+v2 bridge 会在 worker JWT 过期前主动刷新。新的 epoch 告诉服务器这是同一个 worker 但使用了新凭据。Epoch 不匹配（409 响应）会被激进处理：两个连接都会关闭，异常会向上回溯调用方，防止脑裂场景。
+
+---
+
+## 消息路由与回声去重
+
+两代 bridge 都使用 `handleIngressMessage()` 作为中央路由器：
+
+1. 解析 JSON，规范化控制消息键名。
+2. 将 `control_response` 路由到权限处理器，将 `control_request` 路由到请求处理器。
+3. 根据 `recentPostedUUIDs`（回声去重）和 `recentInboundUUIDs`（重复投递去重）检查 UUID。
+4. 转发验证通过的用户消息。
+
+### BoundedUUIDSet：O(1) 查找，O(capacity) 内存
+
+Bridge 存在回声问题——消息可能在读取流上回显，或在传输切换期间被投递两次。`BoundedUUIDSet` 是一个基于循环缓冲区的 FIFO 有界集合：
 
 ```typescript
 class BoundedUUIDSet {
@@ -114,60 +114,60 @@ class BoundedUUIDSet {
 }
 ```
 
-Two instances run in parallel, each with capacity 2000. O(1) lookup via the Set, O(capacity) memory via circular buffer eviction, no timers or TTLs. Unknown control request subtypes get an error response, not silence -- preventing the server from waiting for a response that never comes.
+两个实例并行运行，每个容量为 2000。通过 Set 实现 O(1) 查找，通过循环缓冲区淘汰实现 O(capacity) 内存占用，无需定时器或 TTL。未知的控制请求子类型会收到错误响应，而不是静默忽略——防止服务器无限等待永远不会到来的响应。
 
 ---
 
-## The Asymmetric Design: Persistent Reads, HTTP POST Writes
+## 非对称设计：持久化读取，HTTP POST 写入
 
-The CCR protocol uses asymmetric transport: reads flow through a persistent connection (WebSocket or SSE), writes go through HTTP POST. This reflects a fundamental asymmetry in the communication pattern.
+CCR 协议使用非对称传输：读取通过持久连接（WebSocket 或 SSE）流动，写入通过 HTTP POST 进行。这反映了通信模式中的根本不对称性。
 
-Reads are high-frequency, low-latency, server-initiated -- hundreds of small messages per second during token streaming. A persistent connection is the only sensible choice. Writes are low-frequency, client-initiated, and require acknowledgment -- messages per minute, not per second. HTTP POST provides reliable delivery, idempotency via UUIDs, and natural integration with load balancers.
+读取是高频、低延迟、服务器发起的——在 token 流式传输期间每秒数百条小消息。持久连接是唯一合理的选择。写入是低频、客户端发起的，并且需要确认——每分钟几条消息，而非每秒。HTTP POST 提供了可靠的传递、通过 UUID 实现的幂等性，以及与负载均衡器的天然集成。
 
-Trying to unify them on a single WebSocket creates coupling: if the WebSocket drops during a write, you need retry logic and must distinguish "not sent" from "sent but acknowledgment lost." Separate channels let each be optimized independently.
+试图将它们统一到单个 WebSocket 上会产生耦合：如果 WebSocket 在写入期间断开，你需要重试逻辑，并且必须区分“未发送”和“已发送但确认丢失”。分离通道允许各自独立优化。
 
 ---
 
-## Remote Session Management
+## 远程会话管理
 
-The `SessionsWebSocket` manages the client side of a CCR WebSocket connection. Its reconnection strategy discriminates between failure types:
+`SessionsWebSocket` 管理 CCR WebSocket 连接的客户端侧。其重连策略会根据故障类型进行区分：
 
-| Failure | Strategy |
+| 故障 | 策略 |
 |---------|----------|
-| 4003 (unauthorized) | Stop immediately, no retries |
-| 4001 (session not found) | Max 3 retries, linear backoff (transient during compaction) |
-| Other transient | Exponential backoff, max 5 attempts |
+| 4003（未授权） | 立即停止，不重试 |
+| 4001（会话未找到） | 最多重试 3 次，线性退避（压缩期间的瞬时故障） |
+| 其他瞬时故障 | 指数退避，最多 5 次尝试 |
 
-The `isSessionsMessage()` type guard accepts any object with a string `type` field -- deliberately permissive. A hardcoded allowlist would silently drop new message types before the client is updated.
-
----
-
-## Direct Connect: The Local Server
-
-Direct Connect is the simplest topology: Claude Code runs as a server and clients connect via WebSocket. No cloud intermediary, no OAuth tokens.
-
-Sessions have five states: `starting`, `running`, `detached`, `stopping`, `stopped`. Metadata persists to `~/.claude/server-sessions.json` for resume across server restarts. The `cc://` URL scheme provides clean addressing for local connections.
+`isSessionsMessage()` 类型守卫接受任何带有字符串 `type` 字段的对象——这是刻意设计的宽松策略。硬编码的白名单会在客户端更新前静默丢弃新消息类型。
 
 ---
 
-## Upstream Proxy: Credential Injection in Containers
+## Direct Connect：本地服务器
 
-The upstream proxy runs inside CCR containers and solves a specific problem: injecting organization credentials into outbound HTTPS traffic from a container where the agent might execute untrusted commands.
+Direct Connect 是最简单的拓扑结构：Claude Code 作为服务器运行，客户端通过 WebSocket 连接。没有云端中介，没有 OAuth token。
 
-The setup sequence is carefully ordered:
+会话有五种状态：`starting`、`running`、`detached`、`stopping`、`stopped`。元数据持久化到 `~/.claude/server-sessions.json`，以便在服务器重启后恢复。`cc://` URL scheme 为本地连接提供了简洁的寻址方式。
 
-1. Read the session token from `/run/ccr/session_token`.
-2. Set `prctl(PR_SET_DUMPABLE, 0)` via Bun FFI -- blocking same-UID ptrace of the process heap. Without this, a prompt-injected `gdb -p $PPID` could scrape the token from memory.
-3. Download the upstream proxy CA certificate and concatenate with system CA bundle.
-4. Start a local CONNECT-to-WebSocket relay on an ephemeral port.
-5. Unlink the token file -- the token now exists only on the heap.
-6. Export environment variables for all subprocesses.
+---
 
-Every step fails open: errors disable the proxy rather than killing the session. The correct tradeoff -- a failed proxy means some integrations will not work, but core functionality remains available.
+## 上游代理：容器中的凭据注入
 
-### Protobuf Hand-Encoding
+上游代理运行在 CCR 容器内部，解决了一个特定问题：在 Agent 可能执行不受信任命令的容器中，向出站 HTTPS 流量注入组织凭据。
 
-Bytes through the tunnel are wrapped in `UpstreamProxyChunk` protobuf messages. The schema is trivial -- `message UpstreamProxyChunk { bytes data = 1; }` -- and Claude Code encodes it by hand in ten lines rather than pulling in a protobuf runtime:
+设置顺序经过精心编排：
+
+1. 从 `/run/ccr/session_token` 读取 session token。
+2. 通过 Bun FFI 设置 `prctl(PR_SET_DUMPABLE, 0)`——阻止同 UID 对进程堆的 ptrace。如果没有这一步，被 prompt injection 利用的 `gdb -p $PPID` 可能会从内存中抓取 token。
+3. 下载上游代理 CA 证书并与系统 CA 包拼接。
+4. 在临时端口上启动本地 CONNECT-to-WebSocket 中继。
+5. 删除 token 文件——token 现在仅存在于堆内存中。
+6. 为所有子进程导出环境变量。
+
+每一步都是失败开放（fail open）的：错误会禁用代理而不是终止会话。这是正确的权衡——代理失败意味着某些集成无法工作，但核心功能仍然可用。
+
+### Protobuf 手动编码
+
+通过隧道的字节被封装在 `UpstreamProxyChunk` protobuf 消息中。Schema 非常简单——`message UpstreamProxyChunk { bytes data = 1; }`——Claude Code 用十行代码手动编码，而不是引入 protobuf 运行时：
 
 ```typescript
 export function encodeChunk(data: Uint8Array): Uint8Array {
@@ -183,22 +183,22 @@ export function encodeChunk(data: Uint8Array): Uint8Array {
 }
 ```
 
-Ten lines replace a full protobuf runtime. A single-field message does not justify a dependency -- the maintenance burden of the bit manipulation is far lower than the supply chain risk.
+十行代码替代了完整的 protobuf 运行时。单字段消息不值得引入依赖——位操作的维护负担远低于供应链风险。
 
 ---
 
-## Apply This: Designing Remote Agent Execution
+## 实践应用：设计远程 Agent 执行
 
-**Separate read and write channels.** When reads are high-frequency streams and writes are low-frequency RPCs, unifying them creates unnecessary coupling. Let each channel fail and recover independently.
+**分离读写通道。** 当读取是高频流而写入是低频 RPC 时，统一它们会产生不必要的耦合。让每个通道独立地故障和恢复。
 
-**Bound your deduplication memory.** The BoundedUUIDSet pattern provides fixed-memory deduplication. Any at-least-once delivery system needs a bounded dedup buffer, not an unbounded Set.
+**限制去重内存。** BoundedUUIDSet 模式提供了固定内存的去重。任何至少一次（at-least-once）投递系统都需要有界的去重缓冲区，而不是无界的 Set。
 
-**Make reconnection strategy proportional to the failure signal.** Permanent failures should not retry. Transient failures should retry with backoff. Ambiguous failures should retry with a low cap.
+**使重连策略与故障信号成比例。** 永久性故障不应重试。瞬时故障应带退避重试。模糊故障应以较低的上限重试。
 
-**Keep secrets heap-only in adversarial environments.** Reading the token from a file, disabling ptrace, and unlinking the file eliminates both filesystem and memory-inspection attack vectors.
+**在对抗环境中保持密钥仅在堆内存中。** 从文件读取 token、禁用 ptrace 并删除文件，消除了文件系统和内存检查两种攻击向量。
 
-**Fail open for auxiliary systems.** The upstream proxy fails open because it provides enhanced functionality (credential injection), not core functionality (model inference).
+**辅助系统采用失败开放策略。** 上游代理之所以失败开放，是因为它提供的是增强功能（凭据注入），而非核心功能（模型推理）。
 
-The remote execution systems encode a deeper principle: the agent's core loop (Chapter 5) should be agnostic about where instructions come from and where results go. The bridge, Direct Connect, and upstream proxy are transport layers. The message handling, tool execution, and permission flows above them are identical regardless of whether the user is sitting at the terminal or on the other side of a WebSocket.
+远程执行系统体现了一个更深层的原则：Agent 的核心循环（第 5 章）应当对指令来源和结果去向无关。Bridge、Direct Connect 和上游代理都是传输层。其上的消息处理、工具执行和权限流程是完全相同的，无论用户是坐在终端前还是在 WebSocket 的另一端。
 
-The next chapter examines the other operational concern: performance -- how Claude Code makes every millisecond and token count across startup, rendering, search, and API costs.
+下一章将探讨另一个运维关注点：性能——Claude Code 如何在启动、渲染、搜索和 API 成本方面精打细算每一毫秒和每一个 token。

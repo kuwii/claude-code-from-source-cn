@@ -1,99 +1,99 @@
-# Chapter 12: Extensibility -- Skills and Hooks
+# 第12章：可扩展性——技能与钩子
 
-## Two Dimensions of Extension
+## 扩展的两个维度
 
-Every extensibility system answers two questions: what can the system do, and when does it do it. Most frameworks conflate the two -- a plugin registers both capabilities and lifecycle callbacks in the same object, and the boundary between "adding a feature" and "intercepting a feature" blurs into a single registration API.
+每个可扩展性系统都需要回答两个问题：系统能做什么，以及何时去做。大多数框架将这两者混为一谈——插件在同一个对象中同时注册功能和生命周期回调，导致“添加功能”与“拦截功能”之间的界限模糊成一个单一的注册 API。
 
-Claude Code separates them cleanly. Skills extend what the model can do. They are markdown files that become slash commands, injecting new instructions into the conversation when invoked. Hooks extend when and how things happen. They are lifecycle interceptors that fire at over two dozen distinct points during a session, running arbitrary code that can block actions, modify inputs, force continuation, or silently observe.
+Claude Code 将二者清晰地分离开来。技能（Skills）扩展模型的能力。它们是转化为斜杠命令的 Markdown 文件，在被调用时向对话中注入新的指令。钩子（Hooks）扩展事情发生的时间和方式。它们是生命周期拦截器，在会话期间的二十多个不同节点触发，运行任意代码以阻止操作、修改输入、强制继续执行或静默观察。
 
-The separation is not accidental. Skills are content -- they expand the model's knowledge and capabilities by adding prompt text. Hooks are control flow -- they modify the execution path without changing what the model knows. A skill might teach the model how to run your team's deployment process. A hook might ensure no deployment command executes without a passing test suite. The skill adds capability; the hook adds constraint.
+这种分离并非偶然。技能是内容——它们通过添加提示词文本来扩展模型的知识和能力。钩子是控制流——它们在不改变模型已知内容的前提下修改执行路径。一个技能可以教会模型如何运行团队的部署流程；一个钩子则可以确保在未通过测试套件之前不执行任何部署命令。技能增加能力；钩子增加约束。
 
-This chapter covers both systems in depth, then examines where they intersect: skill-declared hooks that register as session-scoped lifecycle interceptors when the skill is invoked.
+本章将深入探讨这两个系统，随后分析它们的交汇点：技能声明的钩子，即在技能被调用时注册为会话级生命周期拦截器的机制。
 
 ---
 
-## Skills: Teaching the Model New Tricks
+## 技能：教授模型新本领
 
-### Two-Phase Loading
+### 两阶段加载
 
-The core optimization of the skills system is that frontmatter loads at startup, but full content loads only on invocation.
+技能系统的核心优化在于：frontmatter 在启动时加载，但完整内容仅在调用时才加载。
 
 ```mermaid
 flowchart LR
-    subgraph "Phase 1: Startup"
-        S1[Read SKILL.md files<br/>from 7 sources] --> S2[Extract YAML frontmatter<br/>name, description, whenToUse]
-        S2 --> S3[Build system prompt menu<br/>model knows skills exist]
+    subgraph "阶段1：启动"
+        S1[从7个来源读取<br/>SKILL.md文件] --> S2[提取YAML frontmatter<br/>name, description, whenToUse]
+        S2 --> S3[构建系统提示菜单<br/>模型知晓技能的存在]
     end
 
-    subgraph "Phase 2: Invocation"
-        I1[User or model<br/>invokes /skill-name] --> I2[getPromptForCommand executes]
-        I2 --> I3[Variable substitution<br/>ARGUMENTS, SKILL_DIR, SESSION_ID]
-        I3 --> I4[Inline shell execution<br/>unless MCP-sourced]
-        I4 --> I5[Content blocks injected<br/>into conversation]
+    subgraph "阶段2：调用"
+        I1[用户或模型<br/>调用 /skill-name] --> I2[执行getPromptForCommand]
+        I2 --> I3[变量替换<br/>ARGUMENTS, SKILL_DIR, SESSION_ID]
+        I3 --> I4[内联Shell执行<br/>除非源自MCP]
+        I4 --> I5[内容块注入<br/>到对话中]
     end
 
-    S3 -.->|"on invocation"| I1
+    S3 -.->|"调用时"| I1
 
     style S3 fill:#c8e6c9
     style I5 fill:#bbdefb
 ```
 
-**Phase 1** reads each `SKILL.md` file, splits YAML frontmatter from the markdown body, and extracts metadata. The frontmatter fields become part of the system prompt so the model knows the skill exists. The markdown body is captured in a closure but not processed. A project with 50 skills pays the token cost of 50 short descriptions, not 50 full documents.
+**阶段1** 读取每个 `SKILL.md` 文件，将 YAML frontmatter 与 Markdown 正文分离，并提取元数据。frontmatter 字段成为系统提示的一部分，使模型知晓该技能的存在。Markdown 正文被捕获在闭包中但不进行处理。一个拥有50个技能的项目仅需支付50条简短描述的 token 成本，而非50份完整文档的成本。
 
-**Phase 2** fires when the model or user invokes a skill. `getPromptForCommand` prepends the base directory, substitutes variables (`$ARGUMENTS`, `${CLAUDE_SKILL_DIR}`, `${CLAUDE_SESSION_ID}`), and executes inline shell commands (backtick-prefixed with `!`). The result is returned as content blocks injected into the conversation.
+**阶段2** 在模型或用户调用技能时触发。`getPromptForCommand` 会前置基础目录，替换变量（`$ARGUMENTS`、`${CLAUDE_SKILL_DIR}`、`${CLAUDE_SESSION_ID}`），并执行内联 shell 命令（以 `` !` `` 为前缀）。结果作为内容块返回并注入到对话中。
 
-### Seven Sources with Priority
+### 七个来源及其优先级
 
-Skills arrive from seven distinct sources, loaded in parallel and merged by precedence:
+技能来自七个不同的来源，并行加载并按优先级合并：
 
-| Priority | Source | Location | Notes |
+| 优先级 | 来源 | 位置 | 备注 |
 |----------|--------|----------|-------|
-| 1 | Managed (Policy) | `<MANAGED_PATH>/.claude/skills/` | Enterprise-controlled |
-| 2 | User | `~/.claude/skills/` | Personal, available everywhere |
-| 3 | Project | `.claude/skills/` (walked up to home) | Checked into version control |
-| 4 | Additional Dirs | `<add-dir>/.claude/skills/` | Via `--add-dir` flag |
-| 5 | Legacy Commands | `.claude/commands/` | Backwards-compatible |
-| 6 | Bundled | Compiled into the binary | Feature-gated |
-| 7 | MCP | MCP server prompts | Remote, untrusted |
+| 1 | 托管（策略） | `<MANAGED_PATH>/.claude/skills/` | 企业管控 |
+| 2 | 用户 | `~/.claude/skills/` | 个人所有，全局可用 |
+| 3 | 项目 | `.claude/skills/`（向上遍历至主目录） | 纳入版本控制 |
+| 4 | 附加目录 | `<add-dir>/.claude/skills/` | 通过 `--add-dir` 标志指定 |
+| 5 | 旧版命令 | `.claude/commands/` | 向后兼容 |
+| 6 | 内置 | 编译进二进制文件 | 受特性开关控制 |
+| 7 | MCP | MCP 服务器提示 | 远程，不可信 |
 
-Deduplication uses `realpath` to resolve symlinks and overlapping parent directories. The first-seen source wins. The `getFileIdentity` function resolves to canonical paths via `realpath` rather than relying on inode values, which are unreliable on container/NFS mounts and ExFAT.
+去重机制使用 `realpath` 来解析符号链接和重叠的父目录。先发现的来源优先。`getFileIdentity` 函数通过 `realpath` 解析为规范路径，而不是依赖 inode 值，因为 inode 在容器/NFS 挂载和 ExFAT 文件系统上不可靠。
 
-### The Frontmatter Contract
+### Frontmatter 契约
 
-Key frontmatter fields that control skill behavior:
+控制技能行为的关键 frontmatter 字段：
 
-| YAML Field | Purpose |
+| YAML 字段 | 用途 |
 |-----------|---------|
-| `name` | User-facing display name |
-| `description` | Shown in autocomplete and system prompt |
-| `when_to_use` | Detailed usage scenarios for model discovery |
-| `allowed-tools` | Which tools the skill can use |
-| `disable-model-invocation` | Block autonomous model use |
-| `context` | `'fork'` to run as sub-agent |
-| `hooks` | Lifecycle hooks registered on invocation |
-| `paths` | Glob patterns for conditional activation |
+| `name` | 面向用户的显示名称 |
+| `description` | 在自动补全和系统提示中显示 |
+| `when_to_use` | 供模型发现使用的详细场景描述 |
+| `allowed-tools` | 技能可使用的工具列表 |
+| `disable-model-invocation` | 阻止模型自主调用 |
+| `context` | 设为 `'fork'` 以作为子代理运行 |
+| `hooks` | 调用时注册的生命周期钩子 |
+| `paths` | 用于条件激活的 glob 模式 |
 
-The `context: 'fork'` option runs the skill as a sub-agent with its own context window, essential for skills that need significant work without polluting the main conversation's token budget. The `disable-model-invocation` and `user-invocable` fields control two distinct access paths -- setting both to true makes the skill invisible, useful for hooks-only skills.
+`context: 'fork'` 选项使技能作为拥有独立上下文窗口的子代理运行，这对于需要大量工作且不希望占用主对话 token 预算的技能至关重要。`disable-model-invocation` 和 `user-invocable` 字段控制两个不同的访问路径——将两者都设为 true 会使技能不可见，这对仅包含钩子的技能很有用。
 
-### The MCP Security Boundary
+### MCP 安全边界
 
-After variable substitution, inline shell commands execute. The security boundary is absolute: **MCP skills never execute inline shell commands.** MCP servers are external systems. An MCP prompt containing `` !`rm -rf /` `` would execute with the user's full permissions if allowed. The system treats MCP skills as content-only. This trust boundary connects to the broader MCP security model discussed in Chapter 15.
+变量替换后，内联 shell 命令会被执行。安全边界是绝对的：**MCP 技能绝不执行内联 shell 命令。** MCP 服务器是外部系统。如果允许，包含 `` !`rm -rf /` `` 的 MCP 提示将以用户的完整权限执行。系统将 MCP 技能视为纯内容。这一信任边界与第15章讨论的更广泛的 MCP 安全模型相关联。
 
-### Dynamic Discovery
+### 动态发现
 
-Skills are not only loaded at startup. When the model touches files, `discoverSkillDirsForPaths` walks up from each path looking for `.claude/skills/` directories. Skills with `paths` frontmatter are stored in a `conditionalSkills` map and activate only when touched paths match their patterns. A skill declaring `paths: "packages/database/**"` remains invisible until the model reads or edits a database file -- context-sensitive capability expansion.
+技能不仅在启动时加载。当模型访问文件时，`discoverSkillDirsForPaths` 会从每个路径向上遍历查找 `.claude/skills/` 目录。带有 `paths` frontmatter 的技能存储在 `conditionalSkills` 映射中，仅当被访问的路径匹配其模式时才激活。声明了 `paths: "packages/database/**"` 的技能在模型读取或编辑数据库文件之前保持不可见——这是一种上下文感知的能力扩展。
 
 ---
 
-## Hooks: Controlling When Things Happen
+## 钩子：控制事情发生的时机
 
-Hooks are Claude Code's mechanism for intercepting and modifying behavior at lifecycle points. The main execution engine exceeds 4,900 lines. The system serves three audiences: individual developers (custom linting, validation), teams (shared quality gates checked into the project), and enterprises (policy-managed compliance rules).
+钩子是 Claude Code 在生命周期节点拦截和修改行为的机制。主执行引擎超过 4,900 行代码。该系统服务于三类受众：个人开发者（自定义 lint、验证）、团队（纳入项目的共享质量门禁）和企业（策略管理的合规规则）。
 
-### A Real-World Hook: Preventing Commits to Main
+### 真实案例：阻止提交到 Main 分支
 
-Before diving into the machinery, here is what a hook looks like in practice. Suppose your team wants to prevent the model from committing directly to the `main` branch.
+在深入探讨底层机制之前，先看看钩子在实践中的样子。假设你的团队希望阻止模型直接提交到 `main` 分支。
 
-**Step 1: The settings.json configuration:**
+**步骤1：settings.json 配置：**
 
 ```json
 {
@@ -114,7 +114,7 @@ Before diving into the machinery, here is what a hook looks like in practice. Su
 }
 ```
 
-**Step 2: The shell script:**
+**步骤2：Shell 脚本：**
 
 ```bash
 #!/bin/bash
@@ -126,148 +126,148 @@ fi
 exit 0
 ```
 
-**Step 3: What the model experiences.** When the model tries `git commit` on the `main` branch, the hook fires before the command executes. The script checks the branch, writes to stderr, and exits with code 2. The model sees a system message: "Cannot commit directly to main. Create a feature branch first." The commit never runs. The model creates a branch and commits there instead.
+**步骤3：模型的体验。** 当模型尝试在 `main` 分支上执行 `git commit` 时，钩子会在命令执行前触发。脚本检查分支，写入 stderr，并以退出码 2 退出。模型看到一条系统消息：“Cannot commit directly to main. Create a feature branch first.”。提交从未执行。模型转而创建分支并在该分支上提交。
 
-The `if: "Bash(git commit*)"` condition means the script only runs for git commit commands -- not for every Bash invocation. Exit code 2 blocks; exit code 0 passes; any other exit code produces a non-blocking warning. This is the complete protocol.
+`if: "Bash(git commit*)"` 条件意味着脚本仅针对 git commit 命令运行——而非每次 Bash 调用。退出码 2 表示阻止；退出码 0 表示通过；任何其他退出码产生非阻塞警告。这就是完整的协议。
 
-### Four User-Configurable Types
+### 四种用户可配置类型
 
-Claude Code defines six hook types -- four user-configurable, two internal.
+Claude Code 定义了六种钩子类型——四种用户可配置，两种内部使用。
 
-**Command hooks** spawn a shell process. Hook input JSON is piped to stdin; the hook communicates back via exit code and stdout/stderr. This is the workhorse type.
+**命令钩子（Command hooks）** 生成一个 shell 进程。钩子输入 JSON 通过管道传入 stdin；钩子通过退出码和 stdout/stderr 进行通信。这是主力类型。
 
-**Prompt hooks** make a single LLM call, returning `{"ok": true}` or `{"ok": false, "reason": "..."}`. Lightweight AI-powered validation without a full agent loop.
+**提示钩子（Prompt hooks）** 进行单次 LLM 调用，返回 `{"ok": true}` 或 `{"ok": false, "reason": "..."}`。轻量级的 AI 驱动验证，无需完整的代理循环。
 
-**Agent hooks** run a multi-turn agentic loop (max 50 turns, `dontAsk` permissions, thinking disabled). Each gets its own session scope. This is the heavy machinery for "verify that the test suite passes and covers the new feature."
+**代理钩子（Agent hooks）** 运行多轮代理循环（最多50轮，`dontAsk` 权限，禁用思考）。每个钩子拥有独立的会话作用域。这是用于“验证测试套件是否通过并覆盖新功能”的重型机制。
 
-**HTTP hooks** POST the hook input to a URL. Enables remote policy servers and audit logging without local process spawning.
+**HTTP 钩子（HTTP hooks）** 将钩子输入 POST 到指定 URL。支持远程策略服务器和审计日志记录，无需本地进程生成。
 
-The two internal types are **callback hooks** (registered programmatically, -70% overhead on the hot path via a fast path that skips span tracking) and **function hooks** (session-scoped TypeScript callbacks for structured output enforcement in agent hooks).
+两种内部类型是**回调钩子（callback hooks）**（以编程方式注册，通过跳过 span 追踪的快速路径减少热路径上70%的开销）和**函数钩子（function hooks）**（会话级 TypeScript 回调，用于在代理钩子中强制执行结构化输出）。
 
-### The Five Most Important Lifecycle Events
+### 五个最重要的生命周期事件
 
-The hook system fires at over two dozen lifecycle points. Five dominate real-world usage:
+钩子系统在二十多个生命周期节点触发。其中五个在实际使用中占主导地位：
 
-**PreToolUse** -- fires before every tool execution. Can block, modify input, auto-approve, or inject context. Permission behavior follows strict precedence: deny > ask > allow. The most common hook point for quality gates.
+**PreToolUse** —— 在每次工具执行前触发。可以阻止、修改输入、自动批准或注入上下文。权限行为遵循严格的优先级：deny > ask > allow。这是质量门禁最常用的钩子点。
 
-**PostToolUse** -- fires after successful execution. Can inject context or replace MCP tool output entirely. Useful for automated feedback on tool results.
+**PostToolUse** —— 在成功执行后触发。可以注入上下文或完全替换 MCP 工具输出。适用于对工具结果的自动化反馈。
 
-**Stop** -- fires before Claude concludes its response. A blocking hook forces continuation. This is the mechanism for automated verification loops: "are you really done?"
+**Stop** —— 在 Claude 结束响应前触发。阻塞型钩子会强制继续执行。这是自动化验证循环的机制：“你真的完成了吗？”
 
-**SessionStart** -- fires at session beginning. Can set environment variables, override the first user message, or register file watch paths. Cannot block (a hook cannot prevent a session from starting).
+**SessionStart** —— 在会话开始时触发。可以设置环境变量、覆盖第一条用户消息或注册文件监视路径。不能阻止（钩子无法阻止会话启动）。
 
-**UserPromptSubmit** -- fires when the user submits a prompt. Can block processing, enabling input validation or content filtering before the model sees it.
+**UserPromptSubmit** —— 在用户提交提示时触发。可以阻止处理，从而在模型看到提示之前启用输入验证或内容过滤。
 
-**Reference table -- remaining events:**
+**参考表——其余事件：**
 
-| Category | Events |
+| 类别 | 事件 |
 |----------|--------|
-| Tool lifecycle | PostToolUseFailure, PermissionDenied, PermissionRequest |
-| Session | SessionEnd (1.5s timeout), Setup |
-| Subagent | SubagentStart, SubagentStop |
-| Compaction | PreCompact, PostCompact |
-| Notification | Notification, Elicitation, ElicitationResult |
-| Configuration | ConfigChange, InstructionsLoaded, CwdChanged, FileChanged, TaskCreated, TaskCompleted, TeammateIdle |
+| 工具生命周期 | PostToolUseFailure, PermissionDenied, PermissionRequest |
+| 会话 | SessionEnd (1.5s timeout), Setup |
+| 子代理 | SubagentStart, SubagentStop |
+| 压缩 | PreCompact, PostCompact |
+| 通知 | Notification, Elicitation, ElicitationResult |
+| 配置 | ConfigChange, InstructionsLoaded, CwdChanged, FileChanged, TaskCreated, TaskCompleted, TeammateIdle |
 
-The blocking asymmetry is intentional. Events representing recoverable decisions (tool calls, stop conditions) support blocking. Events representing irrevocable facts (session started, API failed) do not.
+这种阻塞不对称性是有意设计的。代表可恢复决策的事件（工具调用、停止条件）支持阻塞。代表不可撤销事实的事件（会话已启动、API 失败）则不支持。
 
-### Exit Code Semantics
+### 退出码语义
 
-For command hooks, exit codes carry specific meaning:
+对于命令钩子，退出码具有特定含义：
 
-| Exit Code | Meaning | Blocks |
+| 退出码 | 含义 | 是否阻塞 |
 |-----------|---------|--------|
-| 0 | Success, stdout parsed if JSON | No |
-| 2 | Blocking error, stderr shown as system message | Yes |
-| Other | Non-blocking warning, shown to user only | No |
+| 0 | 成功，若 stdout 为 JSON 则解析 | 否 |
+| 2 | 阻塞错误，stderr 作为系统消息显示 | 是 |
+| 其他 | 非阻塞警告，仅向用户显示 | 否 |
 
-Exit code 2 was chosen deliberately. Exit code 1 is too common -- any unhandled exception, assertion failure, or syntax error produces exit 1. Using exit 2 prevents accidental enforcement.
+选择退出码 2 是经过深思熟虑的。退出码 1 太常见了——任何未处理的异常、断言失败或语法错误都会产生退出码 1。使用退出码 2 可防止意外强制执行。
 
-### Six Hook Sources
+### 六个钩子来源
 
-| Source | Trust Level | Notes |
+| 来源 | 信任级别 | 备注 |
 |--------|-------------|-------|
-| `userSettings` | User | `~/.claude/settings.json`, highest priority |
-| `projectSettings` | Project | `.claude/settings.json`, version-controlled |
-| `localSettings` | Local | `.claude/settings.local.json`, gitignored |
-| `policySettings` | Enterprise | Cannot be overridden |
-| `pluginHook` | Plugin | Priority 999 (lowest) |
-| `sessionHook` | Session | In-memory only, registered by skills |
+| `userSettings` | 用户 | `~/.claude/settings.json`，最高优先级 |
+| `projectSettings` | 项目 | `.claude/settings.json`，纳入版本控制 |
+| `localSettings` | 本地 | `.claude/settings.local.json`，被 gitignore |
+| `policySettings` | 企业 | 不可被覆盖 |
+| `pluginHook` | 插件 | 优先级 999（最低） |
+| `sessionHook` | 会话 | 仅存在于内存中，由技能注册 |
 
 ---
 
-## The Snapshot Security Model
+## 快照安全模型
 
-Hooks execute arbitrary code. A project's `.claude/settings.json` can define hooks that fire before every tool call. What happens if a malicious repository modifies its hooks after the user accepts the workspace trust dialog?
+钩子执行任意代码。项目的 `.claude/settings.json` 可以定义在每次工具调用前触发的钩子。如果恶意仓库在用户接受工作区信任对话框后修改了其钩子，会发生什么？
 
-Nothing. The hooks configuration is frozen at startup.
+什么都不会发生。钩子配置在启动时被冻结。
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant User as 用户
     participant CC as Claude Code
-    participant FS as Filesystem
-    participant Attacker
+    participant FS as 文件系统
+    participant Attacker as 攻击者
 
-    User->>CC: Open project
-    CC->>FS: Read all hook configs
+    User->>CC: 打开项目
+    CC->>FS: 读取所有钩子配置
     CC->>CC: captureHooksConfigSnapshot()
-    Note over CC: Hooks frozen in memory
-    User->>CC: Accept workspace trust
-    Note over CC: Normal operation begins
+    Note over CC: 钩子在内存中冻结
+    User->>CC: 接受工作区信任
+    Note over CC: 正常操作开始
 
-    Attacker->>FS: Modify .claude/settings.json
-    Note over FS: New malicious hooks written
+    Attacker->>FS: 修改 .claude/settings.json
+    Note over FS: 写入新的恶意钩子
 
     CC->>CC: executeHooks()
-    Note over CC: Reads from frozen snapshot<br/>Ignores filesystem changes
+    Note over CC: 从冻结的快照读取<br/>忽略文件系统变更
 ```
 
-`captureHooksConfigSnapshot()` is called once during startup. From that point, `executeHooks()` reads from the snapshot, never re-reading settings files implicitly. The snapshot is only updated through explicit channels: the `/hooks` command or a file watcher detection, both of which rebuild through `updateHooksConfigSnapshot()`.
+`captureHooksConfigSnapshot()` 在启动期间仅被调用一次。从那时起，`executeHooks()` 从快照中读取，不再隐式重新读取设置文件。快照仅通过显式渠道更新：`/hooks` 命令或文件监视器检测，两者都通过 `updateHooksConfigSnapshot()` 重建。
 
-The policy enforcement cascade: `disableAllHooks` in policy settings clears everything. `allowManagedHooksOnly` excludes user and project hooks. A user can disable their own hooks by setting `disableAllHooks`, but they cannot disable enterprise-managed hooks. The policy layer always wins.
+策略执行级联：策略设置中的 `disableAllHooks` 清除所有内容。`allowManagedHooksOnly` 排除用户和项目钩子。用户可以通过设置 `disableAllHooks` 禁用自己的钩子，但不能禁用企业托管的钩子。策略层始终优先。
 
-The trust check itself (`shouldSkipHookDueToTrust()`) was introduced after two vulnerabilities: SessionEnd hooks executing when a user *declined* the trust dialog, and SubagentStop hooks firing before trust was presented. Both shared the same root cause -- hooks firing in lifecycle states where the user had not consented to workspace code execution. The fix is a centralized gate at the top of `executeHooks()`.
+信任检查本身（`shouldSkipHookDueToTrust()`）是在两个漏洞之后引入的：当用户*拒绝*信任对话框时 SessionEnd 钩子仍会执行，以及在呈现信任提示之前 SubagentStop 钩子就已触发。两者都有相同的根本原因——钩子在用户尚未同意执行工作区代码的生命周期状态下触发。修复方案是在 `executeHooks()` 顶部设置一个集中式门控。
 
 ---
 
-## Execution Flow
+## 执行流程
 
 ```mermaid
 flowchart TD
-    Start[executeHooks called] --> Trust{Workspace<br/>trusted?}
-    Trust -->|No| Skip[Return immediately]
-    Trust -->|Yes| Resolve[Assemble matchers from:<br/>snapshot + callbacks + session hooks]
-    Resolve --> Fast{All hooks<br/>internal callbacks?}
-    Fast -->|Yes| FastPath[Skip spans, progress, output pipeline<br/>-70% overhead]
-    Fast -->|No| FullPath[Create abort signals, progress messages]
-    FastPath --> Exec[Parallel execution via async generator]
+    Start[调用executeHooks] --> Trust{工作区<br/>已信任?}
+    Trust -->|No| Skip[立即返回]
+    Trust -->|Yes| Resolve[组装匹配器:<br/>快照 + 回调 + 会话钩子]
+    Resolve --> Fast{所有钩子都是<br/>内部回调?}
+    Fast -->|Yes| FastPath[跳过span、进度、输出管道<br/>-70%开销]
+    Fast -->|No| FullPath[创建中止信号、进度消息]
+    FastPath --> Exec[通过异步生成器并行执行]
     FullPath --> Exec
-    Exec --> Parse[Parse outputs: JSON schema validation<br/>exit codes, permission behaviors]
-    Parse --> Agg[Aggregate results:<br/>deny > ask > allow precedence]
-    Agg --> Once{once: true<br/>hooks?}
+    Exec --> Parse[解析输出: JSON schema验证<br/>退出码、权限行为]
+    Parse --> Agg[聚合结果:<br/>deny > ask > allow 优先级]
+    Agg --> Once{once: true<br/>钩子?}
     Once -->|Yes| Remove[removeSessionHook]
-    Once -->|No| Done[Return aggregated result]
+    Once -->|No| Done[返回聚合结果]
     Remove --> Done
 ```
 
-The fast path for internal callbacks is a significant optimization. When all matched hooks are internal (file access analytics, commit attribution), the system skips span tracking, abort signal creation, progress messages, and the full output processing pipeline. Most PostToolUse invocations hit only internal callbacks.
+内部回调的快速路径是一项重要的优化。当所有匹配的钩子都是内部的（文件访问分析、提交归属）时，系统跳过 span 追踪、中止信号创建、进度消息和完整的输出处理管道。大多数 PostToolUse 调用仅命中内部回调。
 
-Hook input JSON is serialized once via a lazy `getJsonInput()` closure and reused across all parallel hooks. Environment injection sets `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, and for certain events, `CLAUDE_ENV_FILE` where hooks can write environment exports.
+钩子输入 JSON 通过惰性 `getJsonInput()` 闭包序列化一次，并在所有并行钩子中复用。环境注入会设置 `CLAUDE_PROJECT_DIR`、`CLAUDE_PLUGIN_ROOT`，对于某些事件还会设置 `CLAUDE_ENV_FILE`，钩子可以在其中写入环境导出。
 
 ---
 
-## Integration: Where Skills Meet Hooks
+## 集成：技能与钩子的交汇
 
-When a skill is invoked, its frontmatter-declared hooks register as session-scoped hooks. The `skillRoot` becomes `CLAUDE_PLUGIN_ROOT` for the hook's shell commands:
+当技能被调用时，其 frontmatter 声明的钩子会注册为会话级钩子。`skillRoot` 成为钩子 shell 命令的 `CLAUDE_PLUGIN_ROOT`：
 
 ```
 my-skill/
-  SKILL.md          # The skill content
-  validate.sh       # Called by a PreToolUse hook declared in frontmatter
+  SKILL.md          # 技能内容
+  validate.sh       # 由frontmatter中声明的PreToolUse钩子调用
 ```
 
-The skill's frontmatter declares:
+技能的 frontmatter 声明：
 
 ```yaml
 hooks:
@@ -279,32 +279,32 @@ hooks:
           once: true
 ```
 
-When the user invokes `/my-skill`, the skill content loads into the conversation AND the PreToolUse hook registers. The next Bash tool call triggers `validate.sh`. Because `once: true` is set, the hook removes itself after the first successful execution.
+当用户调用 `/my-skill` 时，技能内容加载到对话中，并且 PreToolUse 钩子完成注册。下一次 Bash 工具调用将触发 `validate.sh`。由于设置了 `once: true`，钩子在首次成功执行后会自行移除。
 
-For agents, `Stop` hooks declared in frontmatter are automatically converted to `SubagentStop` hooks, because subagents trigger `SubagentStop`, not `Stop`. Without the conversion, an agent's stop-verification hook would never fire.
+对于代理，frontmatter 中声明的 `Stop` 钩子会自动转换为 `SubagentStop` 钩子，因为子代理触发的是 `SubagentStop` 而非 `Stop`。如果没有这种转换，代理的停止验证钩子将永远不会触发。
 
-### Permission Behavior Precedence
+### 权限行为优先级
 
-`executePreToolHooks()` can block (via `blockingError`), auto-approve (via `permissionBehavior: 'allow'`), force ask (via `'ask'`), deny (via `'deny'`), modify input (via `updatedInput`), or add context (via `additionalContext`). When multiple hooks return different behaviors, deny always wins. This is the correct default for security-relevant decisions.
+`executePreToolHooks()` 可以阻止（通过 `blockingError`）、自动批准（通过 `permissionBehavior: 'allow'`）、强制询问（通过 `'ask'`）、拒绝（通过 `'deny'`）、修改输入（通过 `updatedInput`）或添加上下文（通过 `additionalContext`）。当多个钩子返回不同的行为时，deny 始终优先。对于安全相关的决策，这是正确的默认设置。
 
-### Stop Hooks: Forcing Continuation
+### Stop 钩子：强制继续执行
 
-When a Stop hook returns exit code 2, the stderr is shown to the model as feedback and the conversation continues. This turns a single-shot prompt-response into a goal-directed loop. The Stop hook is arguably the most powerful integration point in the entire system.
+当 Stop 钩子返回退出码 2 时，stderr 会作为反馈显示给模型，对话继续进行。这将单次提示-响应转变为目标导向的循环。Stop 钩子可以说是整个系统中最强大的集成点。
 
 ---
 
-## Apply This: Designing an Extensibility System
+## 实践应用：设计可扩展性系统
 
-**Separate content from control flow.** Skills add capabilities; hooks constrain behavior. Conflating the two makes it impossible to reason about what a plugin does versus what it prevents.
+**将内容与控制流分离。** 技能增加能力；钩子约束行为。将两者混淆会导致无法理清插件究竟是做了什么还是阻止了什么。
 
-**Freeze configuration at trust boundaries.** The snapshot mechanism captures hooks at the moment of consent and never re-reads implicitly. If your system executes user-provided code, this eliminates TOCTOU attacks.
+**在信任边界处冻结配置。** 快照机制在同意时刻捕获钩子，且永不隐式重新读取。如果你的系统执行用户提供的代码，这可以消除 TOCTOU（检查时间与使用时间不一致）攻击。
 
-**Use uncommon exit codes for semantic signals.** Exit code 1 is noise -- every unhandled error produces it. Exit code 2 as the blocking signal prevents accidental enforcement. Choose signals that require deliberate intent.
+**使用不常见的退出码作为语义信号。** 退出码 1 是噪声——每个未处理的错误都会产生它。使用退出码 2 作为阻塞信号可防止意外强制执行。选择的信号应需要刻意意图才能触发。
 
-**Validate at the socket level, not the application level.** The SSRF guard runs at DNS lookup time, not as a pre-flight check. This eliminates the DNS rebinding window. When validating network destinations, the check must be atomic with the connection.
+**在套接字层级而非应用层级进行验证。** SSRF 防护在 DNS 查找时运行，而不是作为预检检查。这消除了 DNS 重绑定窗口。在验证网络目标时，检查必须与连接是原子的。
 
-**Optimize for the common case.** The internal callback fast path (-70% overhead) recognizes that most hook invocations hit only internal callbacks. The two-phase skill loading recognizes that most skills are never invoked in a given session. Each optimization targets the actual distribution of usage.
+**针对常见情况进行优化。** 内部回调快速路径（-70% 开销）认识到大多数钩子调用仅命中内部回调。两阶段技能加载认识到大多数技能在给定会话中从未被调用。每项优化都针对实际的使用分布。
 
-The extensibility system reflects a mature understanding of the tension between power and safety. Skills give the model new capabilities bounded by the MCP security line (Chapter 15). Hooks give external code influence over the model's actions bounded by the snapshot mechanism, exit code semantics, and policy cascade. Neither system trusts the other -- and that mutual distrust is what makes the combination safe to deploy at scale.
+该可扩展性系统反映了对能力与安全之间张力的成熟理解。技能赋予模型新的能力，并受限于 MCP 安全线（第15章）。钩子赋予外部代码对模型行为的影响力，并受限于快照机制、退出码语义和策略级联。两个系统互不信任——正是这种相互不信任使得组合起来能够安全地大规模部署。
 
-The next chapter turns to the visual layer: how Claude Code renders a reactive terminal UI at 60fps and processes input across five terminal protocols.
+下一章将转向视觉层：介绍 Claude Code 如何以 60fps 渲染响应式终端 UI 并跨五种终端协议处理输入。
