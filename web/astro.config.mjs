@@ -4,7 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import remarkMermaidRaw from './src/plugins/remark-mermaid-raw.mjs';
 
 export default defineConfig({
-  site: 'https://claude-code-from-source.com',
+  site: 'https://kuwii.xyz/',
+  base: '/claude-code-from-source',
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
