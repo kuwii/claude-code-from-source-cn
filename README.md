@@ -1,11 +1,11 @@
 # Claude Code 源码解析
 
-**Anthropic AI 编程 Agent 的架构、模式与内部机制**
+**(机翻) Anthropic AI 编程 Agent 的架构、模式与内部机制**
 
 <p align="center">
   <img src="./web/public/cover.jpg" alt="Claude Code from Source — Book Cover" width="400" />
   <br/><br/>
-  <a href="https://claude-code-from-source.com"><strong>在 claude-code-from-source.com 在线阅读</strong></a>
+  <a href="http://kuwii.xyz/claude-code-from-source/"><strong>在线阅读</strong></a>
 </p>
 
 ---
