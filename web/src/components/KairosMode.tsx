@@ -27,15 +27,15 @@ interface Step {
 }
 
 const standardSteps: Step[] = [
-  { label: "Model observes", detail: "Pattern, correction, or important fact detected during conversation" },
-  { label: "Create memory file", detail: "Immediately writes a categorized .md file (user_, feedback_, project_)" },
-  { label: "Update MEMORY.md index", detail: "Adds reference link to the always-loaded index file" },
+  { label: "模型观察", detail: "在对话过程中检测到的模式、修正或重要事实" },
+  { label: "创建记忆文件", detail: "立即写入分类的 .md 文件（user_、feedback_、project_）" },
+  { label: "更新 MEMORY.md 索引", detail: "向始终加载的索引文件添加引用链接" },
 ];
 
 const kairosSteps: Step[] = [
-  { label: "Model observes", detail: "Same detection, but defers structured storage" },
-  { label: "Append to daily log", detail: "Quick append to today's raw log -- minimal interruption to flow" },
-  { label: "Nightly /dream consolidation", detail: "Batch process: deduplicate, categorize, prune, update index" },
+  { label: "模型观察", detail: "相同的检测，但延迟结构化存储" },
+  { label: "追加到每日日志", detail: "快速追加到今天的原始日志——对流的最小干扰" },
+  { label: "夜间 /dream 整合", detail: "批处理：去重、分类、修剪、更新索引" },
 ];
 
 interface Props {
@@ -244,7 +244,7 @@ export default function KairosMode({ className }: Props) {
       >
         {renderColumn(
           "Standard",
-          "Immediate, structured writes",
+          "即时、结构化写入",
           standardSteps,
           colors.standardAccent,
           sunIcon,
@@ -285,7 +285,7 @@ export default function KairosMode({ className }: Props) {
 
         {renderColumn(
           "KAIROS",
-          "Deferred, batch-consolidated",
+          "延迟、批量整合",
           kairosSteps,
           colors.kairosAccent,
           moonIcon,
@@ -317,7 +317,7 @@ export default function KairosMode({ className }: Props) {
             fontFamily: "var(--font-mono)",
           }}
         >
-          Pros: Immediately organized. Cons: Interrupts flow, may over-index
+          优点：立即组织。缺点：打断流程，可能过度索引
         </div>
         <div
           style={{
@@ -331,7 +331,7 @@ export default function KairosMode({ className }: Props) {
             fontFamily: "var(--font-mono)",
           }}
         >
-          Pros: Low friction, natural pruning. Cons: Requires /dream discipline
+          优点：低摩擦，自然修剪。缺点：需要 /dream 纪律
         </div>
       </motion.div>
     </div>

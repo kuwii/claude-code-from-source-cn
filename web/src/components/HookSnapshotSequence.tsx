@@ -51,8 +51,8 @@ interface Step {
 const steps: Step[] = [
   {
     number: 1,
-    title: "Startup",
-    description: "Config read from disk and snapshot frozen in memory",
+    title: "启动阶段",
+    description: "从磁盘读取配置，并将快照冻结在内存中",
     icon: "\u{1F512}",
     iconBg: "#22c55e22",
     iconColor: "#22c55e",
@@ -60,8 +60,8 @@ const steps: Step[] = [
   },
   {
     number: 2,
-    title: "Runtime",
-    description: "Attacker modifies config file on disk",
+    title: "运行阶段",
+    description: "攻击者修改了磁盘上的配置文件",
     icon: "\u{26A0}\u{FE0F}",
     iconBg: "#ef444422",
     iconColor: "#ef4444",
@@ -69,8 +69,8 @@ const steps: Step[] = [
   },
   {
     number: 3,
-    title: "Hook Fires",
-    description: "Reads from frozen snapshot, NOT disk \u2014 attack fails",
+    title: "Hook 触发",
+    description: "读取的是冻结的快照，而非磁盘 —— 攻击失败",
     icon: "\u{1F6E1}\u{FE0F}",
     iconBg: "#22c55e22",
     iconColor: "#22c55e",
@@ -183,7 +183,7 @@ export default function HookSnapshotSequence({
           fontFamily: "var(--font-mono)",
         }}
       >
-        Snapshot Security Model
+        快照安全模型
       </motion.div>
 
       {steps.map((step, i) => (
@@ -239,7 +239,7 @@ export default function HookSnapshotSequence({
                   fontFamily: "var(--font-mono)",
                 }}
               >
-                STEP {step.number}
+                步骤 {step.number}
               </span>
             </div>
 
@@ -277,13 +277,13 @@ export default function HookSnapshotSequence({
                   }}
                 >
                   <DetailRow
-                    label="Source:"
+                    label="来源："
                     value="~/.claude/settings.json"
                     mono
                     colors={colors}
                   />
                   <DetailRow
-                    label="Result:"
+                    label="结果："
                     value="Object.freeze(configSnapshot)"
                     mono
                     colors={colors}
@@ -322,10 +322,10 @@ export default function HookSnapshotSequence({
                       opacity: 0.6,
                     }}
                   >
-                    disk config
+                    磁盘配置
                   </span>
                   <span style={{ color: "#22c55e", fontWeight: 600 }}>
-                    frozen snapshot
+                    冻结快照
                   </span>
                 </div>
               )}

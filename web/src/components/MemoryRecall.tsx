@@ -33,229 +33,229 @@ const memoryTypeColors: Record<MemoryType, { color: string; bg: string; label: s
   user: {
     color: "#60a5fa",
     bg: "rgba(96, 165, 250, 0.12)",
-    label: "User",
+    label: "用户",
   },
   feedback: {
     color: "#d97757",
     bg: "rgba(217, 119, 87, 0.12)",
-    label: "Feedback",
+    label: "反馈",
   },
   project: {
     color: "#4ade80",
     bg: "rgba(74, 222, 128, 0.12)",
-    label: "Project",
+    label: "项目",
   },
   reference: {
     color: "#a78bfa",
     bg: "rgba(167, 139, 250, 0.12)",
-    label: "Reference",
+    label: "参考",
   },
 };
 
 const queryPresets: QueryPreset[] = [
   {
-    query: "How do I set up the database?",
+    query: "如何配置数据库？",
     memories: [
       {
         filename: "feedback_testing.md",
-        name: "Testing Policy",
-        description: "Integration tests must hit real DB, not mocks",
+        name: "测试策略",
+        description: "集成测试必须连接真实数据库，禁止使用 mock",
         type: "feedback",
-        age: "3 days",
+        age: "3 天前",
         selected: true,
       },
       {
         filename: "reference_drizzle.md",
-        name: "Drizzle Setup",
-        description: "Drizzle ORM config, migration commands, studio URL",
+        name: "Drizzle 配置",
+        description: "Drizzle ORM 配置、迁移命令及 Studio URL",
         type: "reference",
-        age: "2 weeks",
+        age: "2 周前",
         selected: true,
       },
       {
         filename: "user_role.md",
-        name: "Developer Role",
-        description: "Senior backend engineer, prefers concise explanations",
+        name: "开发者角色",
+        description: "高级后端工程师，偏好简洁的解释",
         type: "user",
-        age: "1 month",
+        age: "1 个月前",
         selected: false,
       },
       {
         filename: "project_migration.md",
-        name: "DB Migration",
-        description: "Currently migrating from Prisma to Drizzle ORM",
+        name: "数据库迁移",
+        description: "当前正从 Prisma 迁移至 Drizzle ORM",
         type: "project",
-        age: "5 days",
+        age: "5 天前",
         selected: true,
       },
       {
         filename: "feedback_schemas.md",
-        name: "Schema Conventions",
-        description: "Always use camelCase columns, snake_case table names",
+        name: "Schema 规范",
+        description: "字段始终使用 camelCase，表名使用 snake_case",
         type: "feedback",
-        age: "2 weeks",
+        age: "2 周前",
         selected: false,
       },
       {
         filename: "reference_aws.md",
-        name: "AWS Config",
-        description: "RDS instance details, connection strings, IAM roles",
+        name: "AWS 配置",
+        description: "RDS 实例详情、连接字符串及 IAM 角色",
         type: "reference",
-        age: "3 weeks",
+        age: "3 周前",
         selected: false,
       },
       {
         filename: "project_sprint.md",
-        name: "Current Sprint",
-        description: "Auth module refactor, deadline March 15",
+        name: "当前 Sprint",
+        description: "Auth 模块重构，截止日期 3 月 15 日",
         type: "project",
-        age: "1 week",
+        age: "1 周前",
         selected: false,
       },
       {
         filename: "feedback_env.md",
-        name: "Env Variables",
-        description: "Never commit .env files, use vault for secrets",
+        name: "环境变量",
+        description: "严禁提交 .env 文件，密钥请使用 Vault 管理",
         type: "feedback",
-        age: "6 days",
+        age: "6 天前",
         selected: false,
       },
     ],
   },
   {
-    query: "What's the coding style?",
+    query: "代码风格规范是什么？",
     memories: [
       {
         filename: "feedback_style.md",
-        name: "Code Style",
-        description: "Use Biome for formatting, no semicolons, 2-space indent",
+        name: "代码风格",
+        description: "使用 Biome 格式化，无分号，2 空格缩进",
         type: "feedback",
-        age: "2 days",
+        age: "2 天前",
         selected: true,
       },
       {
         filename: "feedback_testing.md",
-        name: "Testing Policy",
-        description: "Integration tests must hit real DB, not mocks",
+        name: "测试策略",
+        description: "集成测试必须连接真实数据库，禁止使用 mock",
         type: "feedback",
-        age: "3 days",
+        age: "3 天前",
         selected: true,
       },
       {
         filename: "feedback_naming.md",
-        name: "Naming Conventions",
-        description: "camelCase for functions, PascalCase for components/types",
+        name: "命名规范",
+        description: "函数使用 camelCase，组件/类型使用 PascalCase",
         type: "feedback",
-        age: "1 week",
+        age: "1 周前",
         selected: true,
       },
       {
         filename: "user_role.md",
-        name: "Developer Role",
-        description: "Senior backend engineer, prefers concise explanations",
+        name: "开发者角色",
+        description: "高级后端工程师，偏好简洁的解释",
         type: "user",
-        age: "1 month",
+        age: "1 个月前",
         selected: false,
       },
       {
         filename: "reference_drizzle.md",
-        name: "Drizzle Setup",
-        description: "Drizzle ORM config, migration commands, studio URL",
+        name: "Drizzle 配置",
+        description: "Drizzle ORM 配置、迁移命令及 Studio URL",
         type: "reference",
-        age: "2 weeks",
+        age: "2 周前",
         selected: false,
       },
       {
         filename: "project_migration.md",
-        name: "DB Migration",
-        description: "Currently migrating from Prisma to Drizzle ORM",
+        name: "数据库迁移",
+        description: "当前正从 Prisma 迁移至 Drizzle ORM",
         type: "project",
-        age: "5 days",
+        age: "5 天前",
         selected: false,
       },
       {
         filename: "feedback_schemas.md",
-        name: "Schema Conventions",
-        description: "Always use camelCase columns, snake_case table names",
+        name: "Schema 规范",
+        description: "字段始终使用 camelCase，表名使用 snake_case",
         type: "feedback",
-        age: "2 weeks",
+        age: "2 周前",
         selected: true,
       },
       {
         filename: "feedback_env.md",
-        name: "Env Variables",
-        description: "Never commit .env files, use vault for secrets",
+        name: "环境变量",
+        description: "严禁提交 .env 文件，密钥请使用 Vault 管理",
         type: "feedback",
-        age: "6 days",
+        age: "6 天前",
         selected: false,
       },
     ],
   },
   {
-    query: "Who is working on auth?",
+    query: "谁在负责 Auth 模块？",
     memories: [
       {
         filename: "project_sprint.md",
-        name: "Current Sprint",
-        description: "Auth module refactor, deadline March 15",
+        name: "当前 Sprint",
+        description: "Auth 模块重构，截止日期 3 月 15 日",
         type: "project",
-        age: "1 week",
+        age: "1 周前",
         selected: true,
       },
       {
         filename: "user_role.md",
-        name: "Developer Role",
-        description: "Senior backend engineer, prefers concise explanations",
+        name: "开发者角色",
+        description: "高级后端工程师，偏好简洁的解释",
         type: "user",
-        age: "1 month",
+        age: "1 个月前",
         selected: true,
       },
       {
         filename: "project_team.md",
-        name: "Team Assignments",
-        description: "Alex on auth, Sara on billing, Dev on frontend",
+        name: "团队分工",
+        description: "Alex 负责 Auth，Sara 负责 Billing，Dev 负责前端",
         type: "project",
-        age: "4 days",
+        age: "4 天前",
         selected: true,
       },
       {
         filename: "reference_linear.md",
-        name: "Linear Board",
-        description: "Project tracker URL, sprint board, backlog link",
+        name: "Linear 看板",
+        description: "项目追踪 URL、Sprint 看板及 Backlog 链接",
         type: "reference",
-        age: "3 weeks",
+        age: "3 周前",
         selected: false,
       },
       {
         filename: "feedback_testing.md",
-        name: "Testing Policy",
-        description: "Integration tests must hit real DB, not mocks",
+        name: "测试策略",
+        description: "集成测试必须连接真实数据库，禁止使用 mock",
         type: "feedback",
-        age: "3 days",
+        age: "3 天前",
         selected: false,
       },
       {
         filename: "reference_drizzle.md",
-        name: "Drizzle Setup",
-        description: "Drizzle ORM config, migration commands, studio URL",
+        name: "Drizzle 配置",
+        description: "Drizzle ORM 配置、迁移命令及 Studio URL",
         type: "reference",
-        age: "2 weeks",
+        age: "2 周前",
         selected: false,
       },
       {
         filename: "feedback_schemas.md",
-        name: "Schema Conventions",
-        description: "Always use camelCase columns, snake_case table names",
+        name: "Schema 规范",
+        description: "字段始终使用 camelCase，表名使用 snake_case",
         type: "feedback",
-        age: "2 weeks",
+        age: "2 周前",
         selected: false,
       },
       {
         filename: "project_migration.md",
-        name: "DB Migration",
-        description: "Currently migrating from Prisma to Drizzle ORM",
+        name: "数据库迁移",
+        description: "当前正从 Prisma 迁移至 Drizzle ORM",
         type: "project",
-        age: "5 days",
+        age: "5 天前",
         selected: false,
       },
     ],
@@ -269,28 +269,28 @@ const pipelineStages: {
 }[] = [
   {
     id: "prefetch",
-    label: "Prefetch fires",
-    description: "Async, parallel to user query processing",
+    label: "触发预取",
+    description: "异步执行，与用户查询处理并行",
   },
   {
     id: "manifest",
-    label: "Build manifest",
-    description: "scanMemoryFiles reads all .md files, parses frontmatter (30 lines max)",
+    label: "构建清单",
+    description: "scanMemoryFiles 读取所有 .md 文件并解析 frontmatter（最多 30 行）",
   },
   {
     id: "evaluate",
-    label: "Sonnet evaluates",
-    description: "Side-query receives manifest + user query + recently-used tools",
+    label: "Sonnet 评估",
+    description: "Side-query 接收清单、用户查询及最近使用的工具",
   },
   {
     id: "select",
-    label: "Select relevant",
-    description: "Sonnet returns up to 5 filenames via structured JSON output",
+    label: "筛选相关内容",
+    description: "Sonnet 通过结构化 JSON 输出返回最多 5 个文件名",
   },
   {
     id: "inject",
-    label: "Inject with staleness",
-    description: "Selected memories attached with age warnings for stale content",
+    label: "注入并标记时效",
+    description: "附加选中的记忆，并对过时内容添加时效警告",
   },
 ];
 
@@ -425,7 +425,7 @@ export default function MemoryRecall({ className }: Props) {
             marginRight: 4,
           }}
         >
-          Query:
+          查询：
         </div>
         {queryPresets.map((preset, i) => (
           <button
@@ -468,7 +468,7 @@ export default function MemoryRecall({ className }: Props) {
             transition: "background 0.2s",
           }}
         >
-          {isAnimating ? "Reset" : "Run Recall"}
+          {isAnimating ? "重置" : "运行召回"}
         </button>
       </div>
 
@@ -618,7 +618,7 @@ export default function MemoryRecall({ className }: Props) {
               letterSpacing: "0.05em",
             }}
           >
-            Memory Manifest ({currentPreset.memories.length} files)
+            记忆清单（{currentPreset.memories.length} 个文件）
           </div>
 
           {/* Memory type legend */}
@@ -842,7 +842,7 @@ export default function MemoryRecall({ className }: Props) {
                   marginBottom: 4,
                 }}
               >
-                {selectedCount} memories recalled
+                已召回 {selectedCount} 条记忆
               </div>
               <div
                 style={{
@@ -851,10 +851,7 @@ export default function MemoryRecall({ className }: Props) {
                   lineHeight: 1.5,
                 }}
               >
-                Selected memories injected as relevant_memories attachment with
-                staleness warnings. Memories older than yesterday include age
-                caveat: "Before recommending from memory, verify against current
-                code."
+                选中的记忆已作为 relevant_memories 附件注入，并附带时效警告。对于超过一天的记忆，将包含时效提示：“在基于记忆提供建议前，请对照当前代码进行核实。”
               </div>
             </motion.div>
           )}

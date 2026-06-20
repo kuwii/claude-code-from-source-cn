@@ -37,82 +37,82 @@ interface RoutingResult {
 const routeSteps: RouteStep[] = [
   {
     id: "bridge",
-    label: "Bridge Transport",
-    check: 'starts with "bridge:"?',
+    label: "Bridge 传输",
+    check: '是否以 "bridge:" 开头？',
     detail:
-      "Cross-machine communication via Remote Control relay. Two Claude Code instances on different machines communicate through Anthropic's servers. Requires explicit user consent.",
+      "通过 Remote Control 中继进行跨机器通信。位于不同机器上的两个 Claude Code 实例通过 Anthropic 服务器进行通信。需要用户明确同意。",
   },
   {
     id: "uds",
     label: "UDS Socket",
-    check: 'starts with "uds:"?',
+    check: '是否以 "uds:" 开头？',
     detail:
-      "Local inter-process via Unix Domain Sockets. For instances on the same machine in different processes (e.g., VS Code extension + terminal). Fast, secure, reliable.",
+      "通过 Unix Domain Sockets 进行本地进程间通信。适用于同一机器上不同进程中的实例（例如 VS Code 扩展 + 终端）。快速、安全、可靠。",
   },
   {
     id: "registry_running",
-    label: "In-Process (Running)",
-    check: "found in agentNameRegistry & running?",
+    label: "进程内（运行中）",
+    check: "在 agentNameRegistry 中找到且处于运行状态？",
     detail:
-      "Most common path. Message queued via pendingMessages array, delivered at next tool-round boundary. Preserves turn structure -- no race conditions.",
+      "最常见的路径。消息通过 pendingMessages 数组排队，在下一个 tool-round 边界交付。保留轮次结构——无竞态条件。",
   },
   {
     id: "registry_terminal",
-    label: "Resume Dead Agent",
-    check: "found but in terminal state?",
+    label: "恢复已终止 Agent",
+    check: "找到但处于终止状态？",
     detail:
-      "Auto-resume: reconstructs agent from disk transcript, rebuilds message history, re-registers as background task. Coordinator never needs to track agent liveness.",
+      "自动恢复：从磁盘记录重建 agent，重构消息历史，并重新注册为后台任务。协调器无需跟踪 agent 的存活状态。",
   },
   {
     id: "mailbox",
-    label: "Team Mailbox",
-    check: "team context active?",
+    label: "团队 Mailbox",
+    check: "团队上下文是否激活？",
     detail:
-      'File-based mailbox system. Messages written to recipient\'s mailbox file on disk. Supports broadcast via "*" wildcard. Cap: 50 messages for UI representation.',
+      '基于文件的 mailbox 系统。消息写入接收方磁盘上的 mailbox 文件。支持通过 "*" 通配符进行广播。上限：UI 展示最多 50 条消息。',
   },
   {
     id: "error",
-    label: "Error",
-    check: "fallthrough",
-    detail: "Recipient not found in any routing table. Returns an error to the sender.",
+    label: "错误",
+    check: "兜底逻辑",
+    detail: "在任何路由表中均未找到接收方。向发送方返回错误。",
   },
 ];
 
 const routeResults: Record<RouteType, RoutingResult> = {
   bridge: {
     route: "bridge",
-    label: "Bridge Relay",
-    detail: "Delivered via Remote Control servers (cross-machine)",
+    label: "Bridge 中继",
+    detail: "通过 Remote Control 服务器交付（跨机器）",
     color: "#6b8dd6",
   },
   uds: {
     route: "uds",
     label: "UDS Socket",
-    detail: "Delivered via Unix Domain Socket (local inter-process)",
+    detail: "通过 Unix Domain Socket 交付（本地进程间）",
     color: "#6b8dd6",
   },
   registry_running: {
     route: "registry_running",
-    label: "Queued",
-    detail: "Queued in pendingMessages, delivered at tool-round boundary",
+    label: "已排队",
+    detail: "在 pendingMessages 中排队，于 tool-round 边界交付",
     color: "#4ade80",
   },
   registry_terminal: {
     route: "registry_terminal",
-    label: "Resumed",
-    detail: "Agent resurrected from disk transcript with full history",
+    label: "已恢复",
+    detail: "Agent 已从磁盘记录中复活，并包含完整历史记录",
     color: "#f59e0b",
   },
   mailbox: {
     route: "mailbox",
     label: "Mailbox",
-    detail: "Written to file-based mailbox for async delivery",
+    detail: "写入基于文件的 mailbox 以进行异步交付",
     color: "#4ade80",
   },
   error: {
     route: "error",
-    label: "Error",
-    detail: "Recipient not found in any routing table",
+    label: "错误",
+    detail: "在任何路由表中均未找到接收方",
     color: "#ef4444",
   },
 };
@@ -120,37 +120,37 @@ const routeResults: Record<RouteType, RoutingResult> = {
 const presets: Preset[] = [
   {
     name: "bridge:remote-session-1",
-    description: "Remote session across machines",
+    description: "跨机器远程会话",
     resolvedRoute: "bridge",
     rawTo: "bridge:remote-session-1",
   },
   {
     name: "uds:/tmp/claude.sock",
-    description: "VS Code extension socket",
+    description: "VS Code 扩展 socket",
     resolvedRoute: "uds",
     rawTo: "uds:/tmp/claude.sock",
   },
   {
     name: "researcher",
-    description: "Running background agent",
+    description: "运行中的后台 agent",
     resolvedRoute: "registry_running",
     rawTo: "researcher",
   },
   {
     name: "explorer-agent",
-    description: "Completed agent (will resume)",
+    description: "已完成的 agent（将恢复）",
     resolvedRoute: "registry_terminal",
     rawTo: "explorer-agent",
   },
   {
     name: "background-worker",
-    description: "Swarm teammate with mailbox",
+    description: "带有 mailbox 的 Swarm 队友",
     resolvedRoute: "mailbox",
     rawTo: "background-worker",
   },
   {
     name: "nonexistent-agent",
-    description: "Unknown recipient",
+    description: "未知接收方",
     resolvedRoute: "error",
     rawTo: "nonexistent-agent",
   },
@@ -323,7 +323,7 @@ export default function SendMessageRouter({ className }: Props) {
               fontWeight: 600,
             }}
           >
-            SendMessage Routing Dispatch
+            SendMessage 路由分发
           </span>
           <span
             style={{
@@ -332,7 +332,7 @@ export default function SendMessageRouter({ className }: Props) {
               marginLeft: "auto",
             }}
           >
-            Chapter 10 -- Coordination
+            第 10 章 -- 协调
           </span>
         </div>
 
@@ -363,7 +363,7 @@ export default function SendMessageRouter({ className }: Props) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") routeMessage();
               }}
-              placeholder="recipient name or address..."
+              placeholder="接收方名称或地址..."
               style={{
                 width: "100%",
                 padding: "10px 12px 10px 36px",
@@ -398,7 +398,7 @@ export default function SendMessageRouter({ className }: Props) {
               whiteSpace: "nowrap",
             }}
           >
-            {isRouting ? "Routing..." : "Route Message"}
+            {isRouting ? "路由中..." : "路由消息"}
           </button>
           {(matchedRoute || currentCheckIndex >= 0) && (
             <button
@@ -414,7 +414,7 @@ export default function SendMessageRouter({ className }: Props) {
                 cursor: "pointer",
               }}
             >
-              Reset
+              重置
             </button>
           )}
         </div>
@@ -471,7 +471,7 @@ export default function SendMessageRouter({ className }: Props) {
             fontFamily: "var(--font-mono)",
           }}
         >
-          Priority-ordered dispatch chain
+          按优先级排序的分发链
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -689,7 +689,7 @@ export default function SendMessageRouter({ className }: Props) {
                           flexShrink: 0,
                         }}
                       >
-                        Delivered!
+                        已交付！
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -781,7 +781,7 @@ export default function SendMessageRouter({ className }: Props) {
               marginBottom: 6,
             }}
           >
-            Mailbox Messages
+            Mailbox 消息数
           </div>
           <div
             style={{
@@ -848,7 +848,7 @@ export default function SendMessageRouter({ className }: Props) {
               marginTop: 4,
             }}
           >
-            UI message cap
+            UI 消息上限
           </div>
         </div>
       </div>

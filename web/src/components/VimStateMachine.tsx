@@ -52,12 +52,12 @@ const OPERATORS = new Set(["d", "c", "y"]);
 const MOTIONS = new Set(["w", "b", "e", "0", "$"]);
 
 const PRESET_SEQUENCES = [
-  { keys: "dd", label: "dd", description: "Delete line" },
-  { keys: "d2w", label: "d2w", description: "Delete 2 words" },
-  { keys: "cw", label: "cw", description: "Change word" },
-  { keys: "3dd", label: "3dd", description: "Delete 3 lines" },
-  { keys: "yy", label: "yy", description: "Yank line" },
-  { keys: "p", label: "p", description: "Paste" },
+  { keys: "dd", label: "dd", description: "删除行" },
+  { keys: "d2w", label: "d2w", description: "删除 2 个单词" },
+  { keys: "cw", label: "cw", description: "更改单词" },
+  { keys: "3dd", label: "3dd", description: "删除 3 行" },
+  { keys: "yy", label: "yy", description: "复制行" },
+  { keys: "p", label: "p", description: "粘贴" },
 ];
 
 // --- State Diagram Layout ---
@@ -80,20 +80,20 @@ interface StateEdge {
 const STATE_NODES: StateNode[] = [
   { id: "NORMAL", label: "NORMAL", x: 160, y: 60 },
   { id: "INSERT", label: "INSERT", x: 430, y: 60 },
-  { id: "OPERATOR", label: "Operator", sublabel: "Pending", x: 100, y: 190 },
-  { id: "COUNT", label: "Count", sublabel: "Pending", x: 295, y: 190 },
-  { id: "OP_COUNT", label: "Op+Count", sublabel: "Pending", x: 200, y: 300 },
+  { id: "OPERATOR", label: "操作符", sublabel: "等待中", x: 100, y: 190 },
+  { id: "COUNT", label: "计数", sublabel: "等待中", x: 295, y: 190 },
+  { id: "OP_COUNT", label: "操作+计数", sublabel: "等待中", x: 200, y: 300 },
 ];
 
 const STATE_EDGES: StateEdge[] = [
-  { from: "NORMAL", to: "INSERT", label: "i, c+motion" },
+  { from: "NORMAL", to: "INSERT", label: "i, c+动作" },
   { from: "INSERT", to: "NORMAL", label: "Esc" },
   { from: "NORMAL", to: "OPERATOR", label: "d, c, y" },
   { from: "NORMAL", to: "COUNT", label: "1-9" },
-  { from: "OPERATOR", to: "NORMAL", label: "motion, repeat" },
+  { from: "OPERATOR", to: "NORMAL", label: "动作, 重复" },
   { from: "OPERATOR", to: "OP_COUNT", label: "1-9" },
   { from: "COUNT", to: "OPERATOR", label: "d, c, y" },
-  { from: "OP_COUNT", to: "NORMAL", label: "motion" },
+  { from: "OP_COUNT", to: "NORMAL", label: "动作" },
 ];
 
 function getActiveStateId(machine: MachineState): string {
@@ -194,7 +194,7 @@ function executeCommand(
     if (newEditor.lines.length === 0) newEditor.lines = [""];
     newEditor.cursorLine = Math.min(newEditor.cursorLine, newEditor.lines.length - 1);
     newEditor.cursorCol = 0;
-    description = c > 1 ? `delete ${c} lines` : "delete line";
+    description = c > 1 ? `删除 ${c} 行` : "删除行";
   } else if (operator === "y" && motion === null) {
     // yy — yank lines
     const yankCount = Math.min(c, newEditor.lines.length - newEditor.cursorLine);
@@ -202,7 +202,7 @@ function executeCommand(
       newEditor.cursorLine,
       newEditor.cursorLine + yankCount
     );
-    description = c > 1 ? `yank ${c} lines` : "yank line";
+    description = c > 1 ? `复制 ${c} 行` : "复制行";
   } else if (operator === "d" && motion) {
     // d + motion — delete to motion target
     const target = applyMotion(newEditor, motion, c);
@@ -213,7 +213,7 @@ function executeCommand(
     newEditor.lines[newEditor.cursorLine] = line.slice(0, start) + line.slice(end);
     newEditor.yankBuffer = [deleted];
     newEditor.cursorCol = start;
-    description = c > 1 ? `delete ${c} ${motionName(motion)}s` : `delete ${motionName(motion)}`;
+    description = c > 1 ? `删除 ${c} 个${motionName(motion)}` : `删除${motionName(motion)}`;
   } else if (operator === "c" && motion) {
     // c + motion — change to motion target, enter INSERT
     const target = applyMotion(newEditor, motion, c);
@@ -223,7 +223,7 @@ function executeCommand(
     newEditor.lines[newEditor.cursorLine] = line.slice(0, start) + line.slice(end);
     newEditor.cursorCol = start;
     toInsert = true;
-    description = c > 1 ? `change ${c} ${motionName(motion)}s` : `change ${motionName(motion)}`;
+    description = c > 1 ? `更改 ${c} 个${motionName(motion)}` : `更改${motionName(motion)}`;
   } else if (operator === "y" && motion) {
     // y + motion — yank to motion target
     const target = applyMotion(newEditor, motion, c);
@@ -231,7 +231,7 @@ function executeCommand(
     const start = Math.min(newEditor.cursorCol, target.col);
     const end = Math.max(newEditor.cursorCol, target.col);
     newEditor.yankBuffer = [line.slice(start, end)];
-    description = c > 1 ? `yank ${c} ${motionName(motion)}s` : `yank ${motionName(motion)}`;
+    description = c > 1 ? `复制 ${c} 个${motionName(motion)}` : `复制${motionName(motion)}`;
   }
 
   return { editor: newEditor, description, toInsert };
@@ -239,11 +239,11 @@ function executeCommand(
 
 function motionName(m: string): string {
   switch (m) {
-    case "w": return "word";
-    case "b": return "word back";
-    case "e": return "word end";
-    case "0": return "line start";
-    case "$": return "line end";
+    case "w": return "单词";
+    case "b": return "前向单词";
+    case "e": return "词尾";
+    case "0": return "行首";
+    case "$": return "行尾";
     default: return m;
   }
 }
@@ -321,7 +321,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
           newM.buffer = "";
           setPendingDisplay("");
           if (m.mode === "INSERT" || m.pending !== "none") {
-            addLog("Esc", m.mode === "INSERT" ? "exit insert mode" : "cancel pending");
+            addLog("Esc", m.mode === "INSERT" ? "退出插入模式" : "取消等待");
             const fromId = prevStateId;
             triggerTransition(fromId, "NORMAL", "Esc");
           }
@@ -355,7 +355,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
             newM.mode = "INSERT";
             newM.buffer = "";
             setPendingDisplay("");
-            addLog("i", "enter insert mode");
+            addLog("i", "进入插入模式");
             triggerTransition("NORMAL", "INSERT", "i");
             return newM;
           }
@@ -373,7 +373,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
               }
               return newEd;
             });
-            addLog("x", "delete character");
+            addLog("x", "删除字符");
             return newM;
           }
           if (key === "p") {
@@ -397,7 +397,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
               }
               return newEd;
             });
-            addLog("p", "paste");
+            addLog("p", "粘贴");
             return newM;
           }
 
@@ -408,7 +408,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
               const target = applyMotion(ed, motionKey, 1);
               return { ...ed, cursorLine: target.line, cursorCol: target.col };
             });
-            addLog(key, `move: ${motionName(motionKey)}`);
+            addLog(key, `移动: ${motionName(motionKey)}`);
             return newM;
           }
         }
@@ -418,7 +418,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
           newM.pending = "count";
           newM.count = parseInt(key);
           newM.buffer = key;
-          setPendingDisplay(`${key} (count: ${key} -- waiting for operator or motion...)`);
+          setPendingDisplay(`${key} (计数: ${key} -- 等待操作符或动作...)`);
           triggerTransition("NORMAL", "COUNT", key);
           return newM;
         }
@@ -429,10 +429,10 @@ export default function VimStateMachine({ className }: { className?: string }) {
           newM.count = newCount;
           newM.buffer = m.buffer + key;
           if (m.pending === "count") {
-            setPendingDisplay(`${newM.buffer} (count: ${newCount} -- waiting for operator or motion...)`);
+            setPendingDisplay(`${newM.buffer} (计数: ${newCount} -- 等待操作符或动作...)`);
           } else {
             setPendingDisplay(
-              `${newM.buffer} (operator: ${m.operator}, count: ${newCount} -- waiting for motion...)`
+              `${newM.buffer} (操作符: ${m.operator}, 计数: ${newCount} -- 等待动作...)`
             );
           }
           return newM;
@@ -444,7 +444,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
           newM.operator = key;
           newM.buffer = m.buffer + key;
           setPendingDisplay(
-            `${newM.buffer} (count: ${m.count}, operator: ${operatorName(key)} -- waiting for motion...)`
+            `${newM.buffer} (计数: ${m.count}, 操作符: ${operatorName(key)} -- 等待动作...)`
           );
           triggerTransition("COUNT", "OPERATOR", key);
           return newM;
@@ -455,7 +455,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
           newM.pending = "operator";
           newM.operator = key;
           newM.buffer = key;
-          setPendingDisplay(`${key} (operator: ${operatorName(key)} -- waiting for motion...)`);
+          setPendingDisplay(`${key} (操作符: ${operatorName(key)} -- 等待动作...)`);
           triggerTransition("NORMAL", "OPERATOR", key);
           return newM;
         }
@@ -466,7 +466,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
           newM.count = parseInt(key);
           newM.buffer = m.buffer + key;
           setPendingDisplay(
-            `${newM.buffer} (operator: ${operatorName(m.operator!)}, count: ${key} -- waiting for motion...)`
+            `${newM.buffer} (操作符: ${operatorName(m.operator!)}, 计数: ${key} -- 等待动作...)`
           );
           triggerTransition("OPERATOR", "OP_COUNT", key);
           return newM;
@@ -533,7 +533,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
             const target = applyMotion(ed, key, totalCount);
             return { ...ed, cursorLine: target.line, cursorCol: target.col };
           });
-          addLog(fullBuffer, `move: ${totalCount}x ${motionName(key)}`);
+          addLog(fullBuffer, `移动: ${totalCount}x ${motionName(key)}`);
           newM.pending = "none";
           newM.count = null;
           newM.buffer = "";
@@ -629,7 +629,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
               -- {machine.mode} --
             </span>
             {!focused && (
-              <span className="text-xs opacity-70">Click to focus and type vim commands</span>
+              <span className="text-xs opacity-70">点击此处聚焦并输入 vim 命令</span>
             )}
           </div>
           <button
@@ -643,7 +643,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
               color: "#c2c0b6",
             }}
           >
-            Reset
+            重置
           </button>
         </div>
 
@@ -942,7 +942,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
               </span>
             ) : (
               <span style={{ color: "#555" }}>
-                {focused ? "Type a vim command..." : "Click to focus"}
+                {focused ? "输入 vim 命令..." : "点击以聚焦"}
               </span>
             )}
           </div>
@@ -973,7 +973,7 @@ export default function VimStateMachine({ className }: { className?: string }) {
           }}
         >
           <span className="text-xs mr-1" style={{ color: "#87867f" }}>
-            Try:
+            试一试:
           </span>
           {PRESET_SEQUENCES.map((preset) => (
             <button
@@ -1004,11 +1004,11 @@ export default function VimStateMachine({ className }: { className?: string }) {
 function operatorName(op: string): string {
   switch (op) {
     case "d":
-      return "delete";
+      return "删除";
     case "c":
-      return "change";
+      return "更改";
     case "y":
-      return "yank";
+      return "复制";
     default:
       return op;
   }

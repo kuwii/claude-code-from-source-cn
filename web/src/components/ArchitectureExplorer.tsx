@@ -18,33 +18,33 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 const nodes: GraphNode[] = [
   {
     id: "query-loop",
-    label: "Query Loop",
+    label: "查询循环",
     description:
-      "The async generator that drives everything. Streams model output, executes tools, manages context.",
+      "驱动一切运行的异步生成器。负责流式输出模型结果、执行工具调用以及管理上下文。",
     href: "/ch05-agent-loop/",
     primary: true,
   },
   {
     id: "tool-system",
-    label: "Tool System",
+    label: "工具系统",
     description:
-      "40+ tools with a 14-step execution pipeline. Permission system, result budgeting.",
+      "包含 40 多个工具及 14 步执行流水线。具备权限系统和结果预算控制机制。",
     href: "/ch06-tools/",
     primary: true,
   },
   {
     id: "tasks",
-    label: "Tasks",
+    label: "任务",
     description:
-      "Sub-agents and background work. State machine: pending, running, completed/failed.",
+      "子 Agent 与后台工作。状态机包括：等待中、运行中、已完成/已失败。",
     href: "/ch10-coordination/",
     primary: true,
   },
   {
     id: "state-layer",
-    label: "State Layer",
+    label: "状态层",
     description:
-      "Two-tier: Bootstrap STATE (mutable singleton) + AppState (reactive store).",
+      "双层架构：Bootstrap STATE（可变单例）+ AppState（响应式存储）。",
     href: "/ch03-state/",
     primary: true,
   },
@@ -52,51 +52,51 @@ const nodes: GraphNode[] = [
     id: "hooks",
     label: "Hooks",
     description:
-      "27 lifecycle events. Config frozen at startup. Can block tools, modify results, force continuation.",
+      "27 个生命周期事件。配置在启动时冻结。可拦截工具调用、修改结果或强制继续执行。",
     href: "/ch12-extensibility/",
     primary: true,
   },
   {
     id: "memory",
-    label: "Memory",
+    label: "记忆",
     description:
-      "File-based with LLM-powered recall. 4 types: user, feedback, project, reference.",
+      "基于文件存储，由 LLM 驱动召回。分为 4 类：用户、反馈、项目和参考资料。",
     href: "/ch11-memory/",
     primary: true,
   },
   {
     id: "user",
-    label: "User",
-    description: "The developer interacting with the CLI.",
+    label: "用户",
+    description: "与 CLI 进行交互的开发者。",
     primary: false,
   },
   {
     id: "repl",
     label: "REPL",
-    description: "The terminal interface. Handles input, rendering, permissions.",
+    description: "终端界面。负责处理输入、渲染展示及权限管理。",
     href: "/ch13-terminal-ui/",
     primary: false,
   },
 ];
 
 const links: GraphLink[] = [
-  { source: "user", target: "repl", label: "input" },
-  { source: "repl", target: "query-loop", label: "prompts" },
-  { source: "query-loop", target: "tool-system", label: "tool calls" },
-  { source: "tool-system", target: "query-loop", label: "tool results" },
-  { source: "query-loop", target: "tasks", label: "spawns" },
-  { source: "tasks", target: "query-loop", label: "own query loop" },
-  { source: "tasks", target: "repl", label: "bubble permissions" },
-  { source: "query-loop", target: "hooks", label: "fires events" },
+  { source: "user", target: "repl", label: "输入" },
+  { source: "repl", target: "query-loop", label: "提示词" },
+  { source: "query-loop", target: "tool-system", label: "工具调用" },
+  { source: "tool-system", target: "query-loop", label: "工具结果" },
+  { source: "query-loop", target: "tasks", label: "生成任务" },
+  { source: "tasks", target: "query-loop", label: "独立查询循环" },
+  { source: "tasks", target: "repl", label: "冒泡权限请求" },
+  { source: "query-loop", target: "hooks", label: "触发事件" },
   { source: "hooks", target: "tool-system", label: "PreToolUse / PostToolUse" },
-  { source: "hooks", target: "query-loop", label: "Stop hooks" },
-  { source: "query-loop", target: "state-layer", label: "reads/writes" },
-  { source: "state-layer", target: "query-loop", label: "bootstrap singleton" },
-  { source: "state-layer", target: "repl", label: "reactive store" },
+  { source: "hooks", target: "query-loop", label: "停止 Hooks" },
+  { source: "query-loop", target: "state-layer", label: "读写状态" },
+  { source: "state-layer", target: "query-loop", label: "引导单例" },
+  { source: "state-layer", target: "repl", label: "响应式存储" },
   {
     source: "memory",
     target: "query-loop",
-    label: "injected at session start",
+    label: "会话开始时注入",
   },
 ];
 
@@ -537,7 +537,7 @@ export default function ArchitectureExplorer({ className }: Props) {
                 fontFamily: "var(--font-mono)",
               }}
             >
-              Click to read chapter
+              点击阅读对应章节
             </div>
           )}
         </div>
@@ -565,7 +565,7 @@ export default function ArchitectureExplorer({ className }: Props) {
               display: "inline-block",
             }}
           />
-          Core abstraction
+          核心抽象
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span
@@ -577,9 +577,9 @@ export default function ArchitectureExplorer({ className }: Props) {
               display: "inline-block",
             }}
           />
-          Interface
+          接口
         </span>
-        <span>Drag nodes to explore. Hover for details. Click to read.</span>
+        <span>拖拽节点以探索架构。悬停查看详情。点击即可阅读。</span>
       </div>
     </div>
   );

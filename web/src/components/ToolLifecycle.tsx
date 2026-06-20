@@ -37,18 +37,18 @@ interface Arrow {
 }
 
 const states: State[] = [
-  { id: "queued", label: "queued", x: 100, y: 110, color: "#87867f" },
-  { id: "executing", label: "executing", x: 300, y: 110, color: "#d97757" },
-  { id: "completed", label: "completed", x: 500, y: 50, color: "#4ade80" },
-  { id: "error", label: "error", x: 500, y: 170, color: "#ef4444" },
-  { id: "cancelled", label: "cancelled", x: 100, y: 220, color: "#f59e0b" },
+  { id: "queued", label: "已排队", x: 100, y: 110, color: "#87867f" },
+  { id: "executing", label: "执行中", x: 300, y: 110, color: "#d97757" },
+  { id: "completed", label: "已完成", x: 500, y: 50, color: "#4ade80" },
+  { id: "error", label: "错误", x: 500, y: 170, color: "#ef4444" },
+  { id: "cancelled", label: "已取消", x: 100, y: 220, color: "#f59e0b" },
 ];
 
 const arrows: Arrow[] = [
-  { from: "queued", to: "executing", label: "concurrency check passes" },
-  { from: "executing", to: "completed", label: "call() finishes" },
-  { from: "executing", to: "error", label: "exception thrown" },
-  { from: "queued", to: "cancelled", label: "abort signal" },
+  { from: "queued", to: "executing", label: "并发检查通过" },
+  { from: "executing", to: "completed", label: "call() 完成" },
+  { from: "executing", to: "error", label: "抛出异常" },
+  { from: "queued", to: "cancelled", label: "中止信号" },
 ];
 
 const stateMap = Object.fromEntries(states.map((s) => [s.id, s]));
@@ -238,7 +238,7 @@ export default function ToolLifecycle({ className }: Props) {
               fill={colors.textSecondary}
               fontFamily="var(--font-mono)"
             >
-              enqueue
+              入队
             </text>
           </motion.g>
         </svg>

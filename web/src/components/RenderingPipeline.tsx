@@ -22,61 +22,61 @@ const stages: PipelineStage[] = [
     id: 1,
     name: "React Commit",
     shortName: "Commit",
-    description: "React reconciles virtual DOM. State updates processed, commitUpdate diffs props. resetAfterCommit triggers Yoga layout.",
-    metric: "12 nodes",
+    description: "React 协调虚拟 DOM。处理状态更新，commitUpdate 比对 props 差异。resetAfterCommit 触发 Yoga 布局。",
+    metric: "12 个节点",
     timeMs: 0.3,
     color: "#60a5fa",
   },
   {
     id: 2,
-    name: "Yoga Layout",
+    name: "Yoga 布局",
     shortName: "Yoga",
-    description: "CSS flexbox layout via Yoga WASM. Resolves flex-grow, shrink, padding, margin, gap, alignment. Custom measureTextNode for word wrapping.",
-    metric: "48 measured",
+    description: "通过 Yoga WASM 执行 CSS flexbox 布局。解析 flex-grow、shrink、padding、margin、gap 及对齐方式。自定义 measureTextNode 实现自动换行。",
+    metric: "48 次测量",
     timeMs: 0.5,
     color: "#818cf8",
   },
   {
     id: 3,
-    name: "DOM-to-Screen",
-    shortName: "Render",
-    description: "Depth-first walk writes characters and styles into a packed Screen buffer. Each cell = 2 Int32 words. Blit fast-path copies unchanged subtrees.",
-    metric: "384 cells",
+    name: "DOM 转屏幕",
+    shortName: "渲染",
+    description: "深度优先遍历将字符和样式写入紧凑的 Screen 缓冲区。每个单元格 = 2 个 Int32 字。Blit 快速路径直接复制未变更的子树。",
+    metric: "384 个单元格",
     timeMs: 0.4,
     color: "#a78bfa",
   },
   {
     id: 4,
-    name: "Selection/Search Overlay",
-    shortName: "Overlay",
-    description: "Text selection (inverse video) and search highlighting modify screen buffer in-place. Sets prevFrameContaminated flag.",
-    metric: "0 modified",
+    name: "选区/搜索覆盖层",
+    shortName: "覆盖层",
+    description: "文本选择（反色显示）和搜索高亮原地修改屏幕缓冲区。设置 prevFrameContaminated 标志位。",
+    metric: "0 处修改",
     timeMs: 0.1,
     color: "#c084fc",
   },
   {
     id: 5,
-    name: "Diff",
+    name: "差异比对",
     shortName: "Diff",
-    description: "Cell-by-cell comparison: 2 integer comparisons per cell. Only walks the damage rectangle. Steady-state: ~3 cells changed out of 24,000.",
-    metric: "47 changed",
+    description: "逐单元格比较：每个单元格进行 2 次整数比较。仅遍历受损矩形区域。稳态下：24,000 个单元格中约有 3 个发生变化。",
+    metric: "47 处变更",
     timeMs: 0.3,
     color: "#f472b6",
   },
   {
     id: 6,
-    name: "Optimize",
-    shortName: "Optimize",
-    description: "Merge adjacent patches on same row. Eliminate redundant cursor moves. Style transitions via StylePool.transition() cache. 30-50% byte reduction.",
-    metric: "23 writes",
+    name: "优化",
+    shortName: "优化",
+    description: "合并同一行相邻的补丁。消除冗余的光标移动。通过 StylePool.transition() 缓存样式转换。减少 30-50% 字节数。",
+    metric: "23 次写入",
     timeMs: 0.2,
     color: "#fb923c",
   },
   {
     id: 7,
-    name: "Terminal Write",
-    shortName: "Write",
-    description: "Single stdout.write() wrapped in BSU/ESU (synchronized update markers). Entire frame appears atomically -- no tearing.",
+    name: "终端写入",
+    shortName: "写入",
+    description: "单次 stdout.write() 调用包裹在 BSU/ESU（同步更新标记）中。整帧原子化显示——无撕裂现象。",
     metric: "1.2 KB",
     timeMs: 0.5,
     color: "#4ade80",
@@ -316,7 +316,7 @@ export default function RenderingPipeline({ className }: Props) {
             transition: "background 0.2s",
           }}
         >
-          {isRunning ? "Reset" : "Render Frame"}
+          {isRunning ? "重置" : "渲染帧"}
         </button>
 
         <label
@@ -335,7 +335,7 @@ export default function RenderingPipeline({ className }: Props) {
             onChange={(e) => setShowBlit(e.target.checked)}
             style={{ accentColor: colors.accent }}
           />
-          Show double-buffer
+          显示双缓冲
         </label>
 
         <div style={{ flex: 1 }} />
@@ -351,7 +351,7 @@ export default function RenderingPipeline({ className }: Props) {
             }}
           >
             <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: colors.textSecondary }}>
-              Frame:
+              帧耗时:
             </span>
             <span
               style={{
@@ -545,8 +545,8 @@ export default function RenderingPipeline({ className }: Props) {
           <path d="M8 2L14 8L8 14L2 8L8 2Z" stroke="#d97757" strokeWidth="1.5" />
         </svg>
         <span>
-          <strong style={{ color: colors.accent }}>Blit fast-path:</strong> Unchanged subtrees copy cells directly from prevScreen.
-          On steady-state frames, 99% of cells are blitted -- only the spinner re-renders.
+          <strong style={{ color: colors.accent }}>Blit 快速路径：</strong>未变更的子树直接从 prevScreen 复制单元格。
+          在稳态帧中，99% 的单元格通过 blit 复制——仅有加载动画被重新渲染。
         </span>
       </div>
 
@@ -591,7 +591,7 @@ export default function RenderingPipeline({ className }: Props) {
                       {stage.id}
                     </div>
                     <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>
-                      Stage {stage.id}: {stage.name}
+                      阶段 {stage.id}: {stage.name}
                     </span>
                     <span
                       style={{
@@ -640,7 +640,7 @@ export default function RenderingPipeline({ className }: Props) {
                   marginBottom: 12,
                 }}
               >
-                Double-Buffer Rendering
+                双缓冲渲染
               </div>
               <div
                 style={{
@@ -652,7 +652,7 @@ export default function RenderingPipeline({ className }: Props) {
                 }}
               >
                 <MiniGrid
-                  label="Front Buffer (displayed)"
+                  label="前缓冲 (已显示)"
                   cells={frontCells}
                   highlight={activeBuffer === "front"}
                   isDark={isDark}
@@ -661,17 +661,17 @@ export default function RenderingPipeline({ className }: Props) {
                   <svg width="32" height="16" viewBox="0 0 32 16" fill="none">
                     <path d="M2 8H28M28 8L22 3M28 8L22 13" stroke={colors.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: colors.textSecondary }}>swap</span>
+                  <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: colors.textSecondary }}>交换</span>
                 </div>
                 <MiniGrid
-                  label="Back Buffer (rendering)"
+                  label="后缓冲 (渲染中)"
                   cells={backCells}
                   highlight={activeBuffer === "back"}
                   isDark={isDark}
                 />
               </div>
               <div style={{ fontSize: 11, color: colors.textSecondary, textAlign: "center", lineHeight: 1.5 }}>
-                Frames swap via pointer assignment -- zero allocation. Old front becomes next back for blit optimization and diffing.
+                帧交换通过指针赋值实现——零内存分配。旧的前缓冲变为下一个后缓冲，用于 blit 优化和差异比对。
               </div>
             </div>
           </motion.div>
@@ -695,7 +695,7 @@ export default function RenderingPipeline({ className }: Props) {
             marginBottom: 10,
           }}
         >
-          FrameEvent Timing Breakdown
+          帧事件耗时分解
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80, marginBottom: 8 }}>
           {stages.map((stage) => {
@@ -742,8 +742,8 @@ export default function RenderingPipeline({ className }: Props) {
           ))}
         </div>
         <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: colors.textSecondary }}>
-          Total: <strong style={{ color: colors.accent, fontFamily: "var(--font-mono)" }}>{TOTAL_FRAME_MS.toFixed(1)}ms</strong> per frame
-          {" "} -- {Math.round(1000 / TOTAL_FRAME_MS)}fps theoretical maximum
+          总计: 每帧 <strong style={{ color: colors.accent, fontFamily: "var(--font-mono)" }}>{TOTAL_FRAME_MS.toFixed(1)}ms</strong>
+          {" "} -- 理论最高 {Math.round(1000 / TOTAL_FRAME_MS)}fps
         </div>
       </div>
     </div>

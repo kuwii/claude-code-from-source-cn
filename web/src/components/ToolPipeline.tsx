@@ -38,127 +38,127 @@ const hookRejectionMsg =
 const pipelineSteps: PipelineStep[] = [
   {
     id: 1,
-    name: "Tool Lookup",
-    description: "Find the tool by name in the registry",
-    detail: (tool) => `Found: ${tool}Tool`,
+    name: "工具查找",
+    description: "在注册表中按名称查找工具",
+    detail: (tool) => `已找到: ${tool}Tool`,
     canFail: false,
     failDetail: "",
   },
   {
     id: 2,
-    name: "Abort Check",
-    description: "Verify the request hasn't been cancelled",
-    detail: () => "Request active",
+    name: "中止检查",
+    description: "验证请求是否已被取消",
+    detail: () => "请求处于活动状态",
     canFail: false,
     failDetail: "",
   },
   {
     id: 3,
-    name: "Zod Validation",
-    description: "Validate input against the tool's schema",
-    detail: () => "Schema valid",
+    name: "Zod 校验",
+    description: "根据工具的 Schema 验证输入",
+    detail: () => "Schema 有效",
     canFail: true,
-    failDetail: "Invalid input: missing required field 'command'",
+    failDetail: "输入无效: 缺少必填字段 'command'",
   },
   {
     id: 4,
-    name: "Semantic Validation",
-    description: "Tool-specific input validation",
+    name: "语义校验",
+    description: "针对特定工具的输入验证",
     detail: (tool) =>
-      tool === "Read" ? "File path resolved" : "Input accepted",
+      tool === "Read" ? "文件路径已解析" : "输入已接受",
     canFail: false,
     failDetail: "",
   },
   {
     id: 5,
-    name: "Speculative Classifier",
-    description: "Is this tool safe to run speculatively?",
+    name: "推测性分类器",
+    description: "此工具是否可以安全地推测执行？",
     detail: (tool) =>
       tool === "Read" || tool === "Grep"
-        ? "Safe: read-only"
-        : "Unsafe: requires confirmation",
+        ? "安全: 只读操作"
+        : "不安全: 需要确认",
     canFail: false,
     failDetail: "",
   },
   {
     id: 6,
-    name: "Input Backfill",
-    description: "Clone and fill defaults (clone, not mutate)",
-    detail: () => "Defaults applied (immutable clone)",
+    name: "输入回填",
+    description: "克隆并填充默认值（克隆而非修改原对象）",
+    detail: () => "已应用默认值（不可变克隆）",
     canFail: false,
     failDetail: "",
   },
   {
     id: 7,
     name: "PreToolUse Hooks",
-    description: "Run registered hooks (can block execution)",
-    detail: () => "3 hooks ran, all passed",
+    description: "运行已注册的 Hooks（可阻止执行）",
+    detail: () => "运行了 3 个 Hooks，全部通过",
     canFail: true,
     failDetail: hookRejectionMsg,
   },
   {
     id: 8,
-    name: "Permission Resolution",
-    description: "Check 7 permission modes + rules",
+    name: "权限解析",
+    description: "检查 7 种权限模式及规则",
     detail: (tool) =>
       tool === "Read" || tool === "Grep"
-        ? "auto-allowed (read-only)"
-        : "Permission: allowed (auto-edit mode)",
+        ? "自动允许（只读）"
+        : "权限: 已允许（自动编辑模式）",
     canFail: true,
-    failDetail: "Permission denied: user rejected Bash execution",
+    failDetail: "权限被拒绝: 用户拒绝了 Bash 执行",
   },
   {
     id: 9,
-    name: "Permission Denied",
-    description: "Handle denial (prompt user or fail)",
-    detail: () => "Skipped (permission granted)",
+    name: "权限拒绝处理",
+    description: "处理拒绝情况（提示用户或失败）",
+    detail: () => "已跳过（权限已授予）",
     canFail: false,
     failDetail: "",
   },
   {
     id: 10,
-    name: "Tool Execution",
-    description: "Actually run the tool",
+    name: "工具执行",
+    description: "实际运行工具",
     detail: (tool) =>
       tool === "Bash"
-        ? "Process exited (0)"
+        ? "进程已退出 (0)"
         : tool === "Read"
-          ? "Read 156 lines"
+          ? "读取了 156 行"
           : tool === "Write"
-            ? "Wrote 42 lines"
-            : "Found 7 matches",
+            ? "写入了 42 行"
+            : "找到 7 个匹配项",
     canFail: false,
     failDetail: "",
   },
   {
     id: 11,
-    name: "Result Mapping",
-    description: "Transform raw output into a tool_result message",
-    detail: () => "Mapped to ContentBlock[]",
+    name: "结果映射",
+    description: "将原始输出转换为 tool_result 消息",
+    detail: () => "已映射为 ContentBlock[]",
     canFail: false,
     failDetail: "",
   },
   {
     id: 12,
-    name: "Result Budgeting",
-    description: "Enforce per-tool and per-message size caps",
-    detail: () => "1.2KB / 100KB budget",
+    name: "结果预算控制",
+    description: "强制执行单工具和单消息的大小上限",
+    detail: () => "1.2KB / 100KB 预算",
     canFail: false,
     failDetail: "",
   },
   {
     id: 13,
     name: "PostToolUse Hooks",
-    description: "Run post-execution hooks",
-    detail: () => "2 hooks ran",
+    description: "运行执行后 Hooks",
+    detail: () => "运行了 2 个 Hooks",
     canFail: false,
     failDetail: "",
   },
   {
     id: 14,
-    name: "Error Classification",
-    description: "Categorize errors for the model",
-    detail: () => "No errors",
+    name: "错误分类",
+    description: "为模型对错误进行分类",
+    detail: () => "无错误",
     canFail: false,
     failDetail: "",
   },
@@ -335,7 +335,7 @@ export default function ToolPipeline({ className }: Props) {
               fontFamily: "var(--font-mono)",
             }}
           >
-            Tool:
+            工具:
           </label>
           <select
             value={selectedTool}
@@ -394,7 +394,7 @@ export default function ToolPipeline({ className }: Props) {
             disabled={isRunning}
             style={{ accentColor: "#d97757" }}
           />
-          Show failure scenario
+          显示失败场景
         </label>
 
         <button
@@ -412,7 +412,7 @@ export default function ToolPipeline({ className }: Props) {
             transition: "background 0.2s",
           }}
         >
-          {isRunning ? "Reset" : "Execute"}
+          {isRunning ? "重置" : "执行"}
         </button>
       </div>
 
@@ -556,7 +556,7 @@ export default function ToolPipeline({ className }: Props) {
                           : "rgba(135,134,127,0.1)",
                       }}
                     >
-                      can fail
+                      可能失败
                     </span>
                   )}
                 </div>
@@ -663,16 +663,16 @@ export default function ToolPipeline({ className }: Props) {
                     marginBottom: 4,
                   }}
                 >
-                  Tool execution complete
+                  工具执行完成
                 </div>
                 <div style={{ fontSize: 12, color: colors.textSecondary }}>
                   {selectedTool === "Bash"
-                    ? "Process exited with code 0. Output: 12 lines, 384 bytes."
+                    ? "进程以代码 0 退出。输出: 12 行，384 字节。"
                     : selectedTool === "Read"
-                      ? "File read successfully. 156 lines returned as tool_result."
+                      ? "文件读取成功。返回 156 行作为 tool_result。"
                       : selectedTool === "Write"
-                        ? "File written. 42 lines, diff applied to conversation."
-                        : "Search complete. 7 matches across 3 files."}
+                        ? "文件已写入。42 行，diff 已应用到对话中。"
+                        : "搜索完成。在 3 个文件中找到 7 个匹配项。"}
                 </div>
               </div>
             ) : (
@@ -685,11 +685,10 @@ export default function ToolPipeline({ className }: Props) {
                     marginBottom: 4,
                   }}
                 >
-                  Pipeline halted at step {failAtStep}
+                  流水线在步骤 {failAtStep} 处停止
                 </div>
                 <div style={{ fontSize: 12, color: colors.textSecondary }}>
-                  Error classified and returned to the model as a tool_result
-                  with is_error: true
+                  错误已分类并作为 is_error: true 的 tool_result 返回给模型
                 </div>
               </div>
             )}

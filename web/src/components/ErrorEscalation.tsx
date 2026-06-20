@@ -46,100 +46,100 @@ interface ErrorType {
 const errorTypes: ErrorType[] = [
   {
     id: "prompt-too-long",
-    title: "Prompt Too Long",
+    title: "Prompt 过长",
     code: "413",
     icon: "\u26A0",
     steps: [
       {
         id: 1,
-        label: "Context Collapse Drain",
+        label: "上下文折叠清理",
         description:
-          "Drains staged context collapses -- removes verbose tool results and earlier conversation sections that were already marked for removal.",
+          "清理已暂存的上下文折叠——移除冗长的工具调用结果以及之前已标记为待删除的对话片段。",
         detail:
-          "The context pipeline stages collapses proactively. This step just flushes them. Cheap and fast.",
-        successCriteria: "Token count drops below model's context window",
+          "上下文管道会主动进行分阶段折叠。此步骤仅负责执行刷新操作。成本低且速度快。",
+        successCriteria: "Token 数量降至模型上下文窗口限制以下",
       },
       {
         id: 2,
-        label: "Reactive Compact",
+        label: "响应式压缩",
         description:
-          "Emergency summarization via a dedicated compact sub-agent. Rewrites the entire conversation into a condensed summary.",
+          "通过专用的压缩子代理进行紧急摘要处理。将整个对话重写为精简的摘要。",
         detail:
-          "One-shot guard: hasAttemptedReactiveCompact prevents infinite loops. Fires once per error type, never again.",
+          "单次触发保护：hasAttemptedReactiveCompact 可防止无限循环。每种错误类型仅触发一次，不再重复。",
         successCriteria:
-          "Compaction succeeds and new token count fits the context window",
+          "压缩成功，且新的 Token 数量符合上下文窗口要求",
       },
       {
         id: 3,
-        label: "Surface Error & Exit",
+        label: "抛出错误并退出",
         description:
-          "All recovery exhausted. The error is finally surfaced to the user and the loop terminates.",
+          "所有恢复手段均已耗尽。错误最终向用户展示，循环终止。",
         detail:
-          'Returns Terminal { reason: "prompt_too_long" }. The withholding pattern ends here -- this is the first time the user sees the error.',
-        successCriteria: "N/A -- terminal state",
+          '返回 Terminal { reason: "prompt_too_long" }。错误暂扣模式在此结束——这是用户首次看到该错误。',
+        successCriteria: "不适用——终态",
       },
     ],
   },
   {
     id: "max-output-tokens",
-    title: "Max Output Tokens",
+    title: "最大输出 Token 数",
     code: "max_tokens",
     icon: "\u2702",
     steps: [
       {
         id: 1,
-        label: "8K \u2192 64K Escalation",
+        label: "8K \u2192 64K 升级",
         description:
-          "Default output cap is 8,000 tokens (p99 output is 4,911). When hit, escalate to 64K via maxOutputTokensOverride.",
+          "默认输出上限为 8,000 tokens（p99 输出为 4,911）。达到上限时，通过 maxOutputTokensOverride 升级至 64K。",
         detail:
-          "Only <1% of requests hit the 8K cap. The low default saves significant cost at fleet scale.",
-        successCriteria: "Response completes within 64K tokens",
+          "仅有不到 1% 的请求会触及 8K 上限。较低的默认值在集群规模下可节省大量成本。",
+        successCriteria: "响应在 64K tokens 内完成",
       },
       {
         id: 2,
-        label: "Multi-Turn Recovery (\u00D73)",
+        label: "多轮恢复 (\u00D73)",
         description:
-          "Still hitting the cap at 64K. The model's partial response is kept, and a continuation request is sent. Up to 3 attempts.",
+          "在 64K 限制下仍触及上限。保留模型的部分响应，并发送继续生成请求。最多尝试 3 次。",
         detail:
-          "maxOutputTokensRecoveryCount tracks attempts. Each continuation appends the partial output and asks the model to continue.",
+          "maxOutputTokensRecoveryCount 用于追踪尝试次数。每次继续生成都会追加部分输出，并要求模型继续。",
         successCriteria:
-          "Model finishes its response within 3 continuation attempts",
+          "模型在 3 次继续生成尝试内完成响应",
       },
       {
         id: 3,
-        label: "Surface Error & Exit",
+        label: "抛出错误并退出",
         description:
-          "3 recovery attempts exhausted. The accumulated partial output is kept, but the loop exits.",
+          "3 次恢复尝试均已耗尽。保留累积的部分输出，但循环退出。",
         detail:
-          'Returns Terminal { reason: "completed" } with the partial output. The user sees what the model managed to produce.',
-        successCriteria: "N/A -- terminal state",
+          '返回带有部分输出的 Terminal { reason: "completed" }。用户将看到模型已成功生成的内容。',
+        successCriteria: "不适用——终态",
       },
     ],
   },
   {
     id: "media-size",
-    title: "Media / Size Errors",
+    title: "媒体 / 大小错误",
     code: "media_error",
     icon: "\uD83D\uDDBC",
     steps: [
       {
         id: 1,
-        label: "Retry Without Media",
+        label: "移除媒体后重试",
         description:
-          "Strips media attachments (images, PDFs) from the request and retries. Uses reactive compact to rebuild context without the oversized content.",
+          "从请求中剥离媒体附件（图片、PDF）并重试。使用响应式压缩重建上下文，剔除超大内容。",
         detail:
-          "Triggered by ImageSizeError, ImageResizeError, or similar. The one-shot hasAttemptedReactiveCompact guard applies here too.",
+          "由 ImageSizeError、ImageResizeError 或类似错误触发。单次触发的 hasAttemptedReactiveCompact 保护机制在此同样适用。",
         successCriteria:
-          "Request succeeds after media removal and context recompaction",
+          "移除媒体并重新压缩上下文后请求成功",
       },
       {
         id: 2,
-        label: "Surface Error & Exit",
+        label: "抛出错误并退出",
         description:
-          "Media removal did not resolve the issue. The error is surfaced to the user.",
+          "移除媒体未能解决问题。错误向用户展示。",
         detail:
-          'Returns Terminal { reason: "image_error" }. Distinct terminal reason allows callers to show media-specific guidance.',
-        successCriteria: "N/A -- terminal state",
+          '返回 Terminal { reason: "image_error" }。独立的终止原因允许调用方显示针对媒体的特定指引。',
+        successCriteria: "不适用——终态",
       },
     ],
   },
@@ -316,7 +316,7 @@ export default function ErrorEscalation({
             color: colors.text,
           }}
         >
-          Error Recovery Escalation Ladder
+          错误恢复升级阶梯
         </h3>
         <p
           style={{
@@ -326,12 +326,11 @@ export default function ErrorEscalation({
             lineHeight: 1.5,
           }}
         >
-          Errors are{" "}
+          在静默进行恢复尝试期间，错误会被
           <strong style={{ color: colors.terracotta }}>
-            withheld from the stream
-          </strong>{" "}
-          while recovery attempts happen silently. The user only sees an error if
-          all steps fail.
+            从流中暂扣
+          </strong>
+          。只有当所有步骤均失败时，用户才会看到错误。
         </p>
       </div>
 
@@ -405,7 +404,7 @@ export default function ErrorEscalation({
             transition: "all 0.15s ease",
           }}
         >
-          {isAnimating ? "Recovering..." : "Trigger Error"}
+          {isAnimating ? "恢复中..." : "触发错误"}
         </button>
 
         <div
@@ -423,7 +422,7 @@ export default function ErrorEscalation({
               whiteSpace: "nowrap",
             }}
           >
-            Recovery succeeds at step:
+            恢复成功所在步骤：
           </label>
           <div style={{ display: "flex", gap: 4 }}>
             {currentError.steps.map((step, i) => {
@@ -460,8 +459,8 @@ export default function ErrorEscalation({
                   }}
                   title={
                     isTerminal
-                      ? "All recovery fails"
-                      : `Recovery succeeds at step ${step.id}`
+                      ? "所有恢复均失败"
+                      : `在第 ${step.id} 步恢复成功`
                   }
                 >
                   {isTerminal ? "\u2717" : step.id}
@@ -500,8 +499,7 @@ export default function ErrorEscalation({
               \u25CF
             </motion.span>
             <span>
-              Error withheld from stream -- recovery in progress. User sees
-              nothing.
+              错误已从流中暂扣——正在恢复中。用户当前不可见任何异常。
             </span>
           </motion.div>
         )}
@@ -630,7 +628,7 @@ export default function ErrorEscalation({
                                 fontWeight: 600,
                               }}
                             >
-                              Recovered!
+                              已恢复！
                             </motion.span>
                           )}
                           {status === "failure" && isLast && (
@@ -644,7 +642,7 @@ export default function ErrorEscalation({
                                 fontWeight: 600,
                               }}
                             >
-                              All recovery exhausted
+                              所有恢复手段已耗尽
                             </motion.span>
                           )}
                         </div>
@@ -722,8 +720,8 @@ export default function ErrorEscalation({
                         <span style={{ fontSize: 16 }}>\u2193</span>
                         <span>
                           {getStepStatus(step.id) === "failure"
-                            ? "Failed \u2014 escalating..."
-                            : "escalates to"}
+                            ? "失败——正在升级..."
+                            : "升级至"}
                         </span>
                       </motion.div>
                     </div>
@@ -750,23 +748,20 @@ export default function ErrorEscalation({
         }}
       >
         <div style={{ fontWeight: 600, marginBottom: 6, color: colors.text }}>
-          Death Spiral Guards
+          死循环防护机制
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span>
-            \u2022 <code>hasAttemptedReactiveCompact</code> -- one-shot flag,
-            fires once per error
+            \u2022 <code>hasAttemptedReactiveCompact</code>——单次触发标志，每种错误仅触发一次
           </span>
           <span>
-            \u2022 <code>MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3</code> -- hard
-            cap on continuations
+            \u2022 <code>MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3</code>——继续生成的硬性上限
           </span>
           <span>
-            \u2022 Circuit breaker on auto-compact after 3 consecutive failures
+            \u2022 连续 3 次失败后触发自动压缩熔断器
           </span>
           <span>
-            \u2022 No stop hooks on error responses (prevents error \u2192 hook
-            \u2192 retry \u2192 error loops)
+            \u2022 错误响应不触发 stop hooks（防止出现“错误 \u2192 hook \u2192 重试 \u2192 错误”的死循环）
           </span>
         </div>
       </div>

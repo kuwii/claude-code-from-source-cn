@@ -40,148 +40,148 @@ interface PromptSection {
 const PROMPT_SECTIONS: PromptSection[] = [
   {
     id: "identity",
-    label: "Identity & Intro",
+    label: "身份与简介",
     tier: "static",
-    description: "System identity, role description, and behavioral foundations",
+    description: "系统身份、角色描述及行为基础设定",
     tokenEstimate: "~200",
     cacheScope: "global",
-    contents: ["You are Claude Code, an expert software engineer...", "Core behavioral rules and safety guidelines"],
+    contents: ["你是 Claude Code，一位专家级软件工程师...", "核心行为规则与安全准则"],
   },
   {
     id: "behavior",
-    label: "System Behavior Rules",
+    label: "系统行为规则",
     tier: "static",
-    description: "Response formatting, safety constraints, refusal patterns",
+    description: "响应格式、安全约束、拒绝模式",
     tokenEstimate: "~500",
     cacheScope: "global",
-    contents: ["Tool calling conventions", "Error handling rules", "Safety and content policy"],
+    contents: ["工具调用规范", "错误处理规则", "安全与内容策略"],
   },
   {
     id: "tasks",
-    label: "Doing Tasks Guidance",
+    label: "任务执行指南",
     tier: "static",
-    description: "How to approach multi-step tasks, planning, and verification",
+    description: "如何处理多步骤任务、规划及验证",
     tokenEstimate: "~400",
     cacheScope: "global",
-    contents: ["Task decomposition rules", "Verification requirements", "When to ask vs. proceed"],
+    contents: ["任务分解规则", "验证要求", "何时询问与何时继续执行"],
   },
   {
     id: "actions",
-    label: "Actions Guidance",
+    label: "操作指南",
     tier: "static",
-    description: "Tool definitions, schemas, and usage instructions",
+    description: "工具定义、Schema 及使用说明",
     tokenEstimate: "~2,000",
     cacheScope: "global",
-    contents: ["Read, Write, Edit, Bash, Glob, Grep tool schemas", "Tool selection heuristics", "File manipulation rules"],
+    contents: ["Read、Write、Edit、Bash、Glob、Grep 工具的 Schema", "工具选择启发式规则", "文件操作规则"],
   },
   {
     id: "tools",
-    label: "Tool Usage Instructions",
+    label: "工具使用说明",
     tier: "static",
-    description: "Detailed per-tool usage patterns and constraints",
+    description: "各工具的详细使用模式与约束",
     tokenEstimate: "~3,000",
     cacheScope: "global",
-    contents: ["Git workflow rules", "Search before create patterns", "File editing best practices"],
+    contents: ["Git 工作流规则", "先搜索后创建模式", "文件编辑最佳实践"],
   },
   {
     id: "tone",
-    label: "Tone & Style",
+    label: "语气与风格",
     tier: "static",
-    description: "Output formatting, conciseness rules, communication style",
+    description: "输出格式、简洁性规则、沟通风格",
     tokenEstimate: "~300",
     cacheScope: "global",
-    contents: ["Concise by default", "No unnecessary preamble", "Technical precision"],
+    contents: ["默认保持简洁", "避免不必要的开场白", "技术表述精准"],
   },
   {
     id: "efficiency",
-    label: "Output Efficiency",
+    label: "输出效率",
     tier: "static",
-    description: "Rules for minimizing token output while maximizing usefulness",
+    description: "在最大化实用性的同时最小化 token 输出的规则",
     tokenEstimate: "~200",
     cacheScope: "global",
-    contents: ["Avoid restating the question", "Only show relevant code", "Batch tool calls"],
+    contents: ["避免复述问题", "仅展示相关代码", "批量调用工具"],
   },
   {
     id: "boundary",
-    label: "=== DYNAMIC BOUNDARY ===",
+    label: "=== 动态边界 ===",
     tier: "boundary",
-    description: "Cache breakpoint: everything above is shared globally across all users. Everything below is per-session. Moving sections across this boundary affects fleet-wide cache performance.",
+    description: "缓存断点：此边界上方的内容在所有用户间全局共享。下方的内容按会话隔离。跨越此边界移动区块会影响全集群的缓存性能。",
     tokenEstimate: "marker",
     cacheScope: "break",
-    contents: ["Each conditional below is a runtime bit that would otherwise multiply the Blake2b prefix hash variants (2^N)"],
+    contents: ["下方的每个条件都是一个运行时位，否则会使 Blake2b 前缀哈希变体数量呈指数级增长 (2^N)"],
   },
   {
     id: "session",
-    label: "Session Guidance",
+    label: "会话指南",
     tier: "dynamic",
-    description: "Session-specific behavior overrides and feature flags",
+    description: "特定于会话的行为覆盖与功能开关",
     tokenEstimate: "~300",
     cacheScope: "per-session",
-    contents: ["Current permission mode", "Active feature flags", "Session type (REPL vs one-shot)"],
+    contents: ["当前权限模式", "激活的功能开关", "会话类型（REPL 或一次性）"],
   },
   {
     id: "memory",
-    label: "Memory (CLAUDE.md)",
+    label: "记忆 (CLAUDE.md)",
     tier: "dynamic",
-    description: "Project-specific instructions loaded from filesystem",
+    description: "从文件系统加载的项目专属指令",
     tokenEstimate: "~2,000-50,000",
     cacheScope: "per-session",
-    contents: ["User's CLAUDE.md content", "Project conventions", "Custom rules and preferences"],
+    contents: ["用户的 CLAUDE.md 内容", "项目约定", "自定义规则与偏好"],
   },
   {
     id: "environment",
-    label: "Environment Info",
+    label: "环境信息",
     tier: "dynamic",
-    description: "Git status, working directory, OS, shell information",
+    description: "Git 状态、工作目录、操作系统、Shell 信息",
     tokenEstimate: "~500",
     cacheScope: "per-session",
-    contents: ["Git branch, status, recent commits", "Working directory path", "OS and shell version"],
+    contents: ["Git 分支、状态、最近提交", "工作目录路径", "操作系统与 Shell 版本"],
   },
   {
     id: "language",
-    label: "Language Preference",
+    label: "语言偏好",
     tier: "dynamic",
-    description: "User's preferred response language",
+    description: "用户首选的响应语言",
     tokenEstimate: "~50",
     cacheScope: "per-session",
-    contents: ["Respond in the user's language"],
+    contents: ["使用用户的语言进行回复"],
   },
   {
     id: "mcp",
-    label: "MCP Instructions",
+    label: "MCP 指令",
     tier: "dynamic",
-    description: "DANGEROUS: User-specific MCP tool definitions. Disables global cache scope when present because MCP definitions are unique per user.",
+    description: "危险：用户专属的 MCP 工具定义。由于 MCP 定义因用户而异，存在时会禁用全局缓存作用域。",
     tokenEstimate: "~1,000-10,000",
     cacheScope: "UNCACHED",
-    contents: ["MCP server tool definitions", "Per-tool instructions", "Server connection details"],
+    contents: ["MCP 服务器工具定义", "各工具指令", "服务器连接详情"],
   },
   {
     id: "output-style",
-    label: "Output Style",
+    label: "输出样式",
     tier: "dynamic",
-    description: "Session-specific output formatting preferences",
+    description: "特定于会话的输出格式偏好",
     tokenEstimate: "~100",
     cacheScope: "per-session",
-    contents: ["Verbose mode settings", "Expanded view preferences"],
+    contents: ["详细模式设置", "展开视图偏好"],
   },
 ];
 
 const PROVIDER_INFO: Record<Provider, { label: string; authDesc: string; envVar: string; color: string }> = {
   direct: {
     label: "Direct API",
-    authDesc: "API key or OAuth token",
+    authDesc: "API Key 或 OAuth Token",
     envVar: "ANTHROPIC_API_KEY",
     color: "#d97757",
   },
   bedrock: {
     label: "AWS Bedrock",
-    authDesc: "AWS credentials (IAM role / access keys)",
+    authDesc: "AWS 凭证（IAM Role / Access Keys）",
     envVar: "ANTHROPIC_BEDROCK_BASE_URL",
     color: "#ff9900",
   },
   vertex: {
     label: "Google Vertex AI",
-    authDesc: "Google Auth (service account / ADC)",
+    authDesc: "Google Auth（Service Account / ADC）",
     envVar: "ANTHROPIC_VERTEX_PROJECT_ID",
     color: "#4285f4",
   },
@@ -195,9 +195,9 @@ interface ToggleFeature {
 }
 
 const TOGGLE_FEATURES: ToggleFeature[] = [
-  { id: "extended-thinking", label: "Extended thinking", default: false, effect: "Adds thinking budget to request body -- changes cache key" },
-  { id: "mcp-tools", label: "MCP tools", default: false, effect: "Adds user-specific tool definitions -- disables global cache scope" },
-  { id: "auto-mode", label: "Auto mode (AFK)", default: false, effect: "Adds beta header -- once latched, stays for session" },
+  { id: "extended-thinking", label: "扩展思考", default: false, effect: "向请求体添加思考预算 -- 改变缓存键" },
+  { id: "mcp-tools", label: "MCP 工具", default: false, effect: "添加用户专属工具定义 -- 禁用全局缓存作用域" },
+  { id: "auto-mode", label: "自动模式 (AFK)", default: false, effect: "添加 Beta Header -- 一旦触发，在整个会话期间保持生效" },
 ];
 
 // --- Component ---
@@ -282,7 +282,7 @@ export default function APICallLifecycle({ className }: Props) {
   const getCacheScopeLabel = (section: PromptSection) => {
     if (section.tier === "boundary") return "BREAK";
     if (section.tier === "static") {
-      return globalCacheDisabled ? "per-session (MCP present)" : "global";
+      return globalCacheDisabled ? "per-session (存在 MCP)" : "global";
     }
     if (section.id === "mcp") return "UNCACHED";
     return "per-session";
@@ -308,7 +308,7 @@ export default function APICallLifecycle({ className }: Props) {
             alignSelf: "center",
           }}
         >
-          Provider:
+          服务商:
         </span>
         {(Object.keys(PROVIDER_INFO) as Provider[]).map((provider) => {
           const info = PROVIDER_INFO[provider];
@@ -351,9 +351,9 @@ export default function APICallLifecycle({ className }: Props) {
             color: colors.textSecondary,
           }}
         >
-          Auth: {PROVIDER_INFO[selectedProvider].authDesc} -- env: <code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>{PROVIDER_INFO[selectedProvider].envVar}</code>
+          认证方式: {PROVIDER_INFO[selectedProvider].authDesc} -- 环境变量: <code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>{PROVIDER_INFO[selectedProvider].envVar}</code>
           <div style={{ fontSize: 11, marginTop: 2, opacity: 0.7 }}>
-            All providers are cast to <code style={{ fontSize: 10, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>Anthropic</code> via type erasure -- consumers never branch on provider.
+            所有服务商均通过类型擦除转换为 <code style={{ fontSize: 10, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>Anthropic</code> -- 调用方无需根据服务商进行分支判断。
           </div>
         </motion.div>
       </AnimatePresence>
@@ -382,7 +382,7 @@ export default function APICallLifecycle({ className }: Props) {
               marginBottom: 10,
             }}
           >
-            System Prompt Structure
+            System Prompt 结构
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -542,7 +542,7 @@ export default function APICallLifecycle({ className }: Props) {
                 marginBottom: 8,
               }}
             >
-              Cache Status
+              缓存状态
             </div>
             <div
               style={{
@@ -561,13 +561,13 @@ export default function APICallLifecycle({ className }: Props) {
                 }}
               />
               <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: colors.text }}>
-                {globalCacheDisabled ? "Global cache disabled" : "Global cache active"}
+                {globalCacheDisabled ? "全局缓存已禁用" : "全局缓存已启用"}
               </span>
             </div>
             <div style={{ fontSize: 11, color: colors.textSecondary, lineHeight: 1.5 }}>
               {globalCacheDisabled
-                ? "MCP tool definitions are user-specific. They fragment the global cache into millions of unique prefixes."
-                : `Static sections (~${staticTokens.toLocaleString()} tokens) are cached across all Claude Code users, sessions, and organizations.`}
+                ? "MCP 工具定义是用户专属的。它们会将全局缓存碎片化为数百万个唯一前缀。"
+                : `静态区块（约 ${staticTokens.toLocaleString()} tokens）在所有 Claude Code 用户、会话和组织间共享缓存。`}
             </div>
           </div>
 
@@ -589,7 +589,7 @@ export default function APICallLifecycle({ className }: Props) {
                 marginBottom: 8,
               }}
             >
-              Feature Toggles
+              功能开关
             </div>
 
             {TOGGLE_FEATURES.map((feature) => {
@@ -666,15 +666,15 @@ export default function APICallLifecycle({ className }: Props) {
             }}
           >
             <div style={{ fontWeight: 600, color: colors.terracotta, marginBottom: 4, fontFamily: "var(--font-mono)", fontSize: 10 }}>
-              THE 2^N PROBLEM
+              2^N 问题
             </div>
-            Each conditional before the boundary doubles the number of unique global cache entries.
+            边界前的每个条件都会使唯一的全局缓存条目数量翻倍。
             {Object.values(features).filter(Boolean).length > 0 && (
               <span style={{ color: colors.terracotta, fontWeight: 600 }}>
-                {" "}Current active toggles: {Object.values(features).filter(Boolean).length} = {Math.pow(2, Object.values(features).filter(Boolean).length)} cache variants.
+                {" "}当前激活的开关数: {Object.values(features).filter(Boolean).length} = {Math.pow(2, Object.values(features).filter(Boolean).length)} 种缓存变体。
               </span>
             )}
-            {" "}Static sections are deliberately unconditional to prevent cache fragmentation.
+            {" "}静态区块被刻意设计为无条件，以防止缓存碎片化。
           </div>
 
           {/* Legend */}
@@ -688,19 +688,19 @@ export default function APICallLifecycle({ className }: Props) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
               <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: colors.staticBg, border: `1px solid ${colors.staticBorder}` }} />
-              <span>Static (cached globally)</span>
+              <span>静态（全局缓存）</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
               <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: colors.boundaryBg, border: `1px solid ${colors.boundaryBorder}` }} />
-              <span>Dynamic boundary</span>
+              <span>动态边界</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
               <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: colors.dynamicBg, border: `1px solid ${colors.dynamicBorder}` }} />
-              <span>Dynamic (per-session)</span>
+              <span>动态（按会话）</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 2, background: colors.uncachedBg, border: `1px solid ${colors.uncachedBorder}` }} />
-              <span>Uncached (DANGEROUS)</span>
+              <span>未缓存（危险）</span>
             </div>
           </div>
 
@@ -713,7 +713,7 @@ export default function APICallLifecycle({ className }: Props) {
               fontStyle: "italic",
             }}
           >
-            Hover on sections for details
+            悬停在各区块上以查看详情
           </div>
         </div>
       </div>
@@ -741,7 +741,7 @@ export default function APICallLifecycle({ className }: Props) {
           <div style={{ fontWeight: 600, color: colors.staticAccent, marginBottom: 4 }}>
             systemPromptSection()
           </div>
-          Safe. Content goes before the boundary. Cached globally. No runtime conditionals allowed.
+          安全。内容位于边界之前。全局缓存。不允许运行时条件判断。
         </div>
         <div
           style={{
@@ -757,7 +757,7 @@ export default function APICallLifecycle({ className }: Props) {
           <div style={{ fontWeight: 600, color: colors.uncachedAccent, marginBottom: 4 }}>
             DANGEROUS_uncachedSystemPromptSection(_reason)
           </div>
-          Cache-breaking. Requires a reason string. The _reason param is mandatory documentation in source.
+          破坏缓存。需要提供原因字符串。_reason 参数是源码中强制要求的文档说明。
         </div>
       </div>
     </div>

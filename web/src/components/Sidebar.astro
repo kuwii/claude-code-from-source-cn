@@ -88,7 +88,7 @@ const currentPart = currentChapterNum ? getPartForChapter(currentChapterNum) : n
       return (
         <div class="mb-4">
           <div class="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] py-1">
-            Part {part.number}: {part.title}
+            第{part.number}部分：{part.title}
           </div>
           <ul class="mt-1 space-y-0.5">
             {partChapters.map((ch) => {

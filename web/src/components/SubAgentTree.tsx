@@ -41,7 +41,7 @@ const agentTypeInfo: Record<
     model: "Sonnet",
     toolCount: 14,
     permissionMode: "default",
-    description: "Full-featured agent with all tools",
+    description: "全功能 Agent，配备所有工具",
     tools: "Read, Write, Edit, Bash, Grep, Glob, Agent, ...",
     defaultMode: "sync",
   },
@@ -49,7 +49,7 @@ const agentTypeInfo: Record<
     model: "Haiku",
     toolCount: 5,
     permissionMode: "auto-deny writes",
-    description: "Read-only search specialist. Cheapest, fastest",
+    description: "只读搜索专家。成本最低，速度最快",
     tools: "Read, Grep, Glob, Bash (read-only), Agent",
     defaultMode: "sync",
   },
@@ -57,7 +57,7 @@ const agentTypeInfo: Record<
     model: "Haiku",
     toolCount: 5,
     permissionMode: "auto-deny writes",
-    description: "Research + analysis. No editing capability",
+    description: "调研与分析。无编辑能力",
     tools: "Read, Grep, Glob, Bash (read-only), Agent",
     defaultMode: "sync",
   },
@@ -65,7 +65,7 @@ const agentTypeInfo: Record<
     model: "Opus",
     toolCount: 8,
     permissionMode: "default",
-    description: "Adversarial testing + verification",
+    description: "对抗性测试与验证",
     tools: "Read, Bash, Grep, Glob, Edit, Write, ...",
     defaultMode: "async",
   },
@@ -73,18 +73,18 @@ const agentTypeInfo: Record<
     model: "Sonnet",
     toolCount: 3,
     permissionMode: "auto-deny writes",
-    description: "User-facing guidance. Limited tools",
+    description: "面向用户的引导。工具受限",
     tools: "Read, Grep, Glob",
     defaultMode: "sync",
   },
 };
 
 const agentTypeLabels: Record<AgentType, string> = {
-  "general-purpose": "General-Purpose",
-  explore: "Explore",
-  plan: "Plan",
-  verification: "Verification",
-  guide: "Guide",
+  "general-purpose": "通用型",
+  explore: "探索型",
+  plan: "规划型",
+  verification: "验证型",
+  guide: "引导型",
 };
 
 // --- Helpers ---
@@ -219,7 +219,7 @@ export default function SubAgentTree({ className }: Props) {
               transition: "background 0.2s",
             }}
           >
-            Spawn Agent {agents.length >= 6 ? "(max 6)" : ""}
+            创建 Agent {agents.length >= 6 ? "(最多 6 个)" : ""}
           </button>
 
           <AnimatePresence>
@@ -279,7 +279,7 @@ export default function SubAgentTree({ className }: Props) {
                         marginTop: 2,
                       }}
                     >
-                      {agentTypeInfo[type].model} / {agentTypeInfo[type].toolCount} tools
+                      {agentTypeInfo[type].model} / {agentTypeInfo[type].toolCount} 个工具
                     </div>
                   </button>
                 ))}
@@ -309,7 +309,7 @@ export default function SubAgentTree({ className }: Props) {
                 background: colors.syncColor,
               }}
             />
-            Sync
+            同步
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span
@@ -320,7 +320,7 @@ export default function SubAgentTree({ className }: Props) {
                 background: colors.asyncColor,
               }}
             />
-            Async
+            异步
           </span>
         </div>
 
@@ -338,7 +338,7 @@ export default function SubAgentTree({ className }: Props) {
               cursor: "pointer",
             }}
           >
-            Clear
+            清除
           </button>
         )}
       </div>
@@ -366,7 +366,7 @@ export default function SubAgentTree({ className }: Props) {
               textAlign: "center",
             }}
           >
-            Parent Agent
+            父级 Agent
             <div
               style={{
                 fontSize: 11,
@@ -375,7 +375,7 @@ export default function SubAgentTree({ className }: Props) {
                 marginTop: 4,
               }}
             >
-              Opus / 14 tools / main loop
+              Opus / 14 个工具 / 主循环
             </div>
           </div>
         </div>
@@ -567,7 +567,7 @@ export default function SubAgentTree({ className }: Props) {
                               color: colors.textSecondary,
                             }}
                           >
-                            {agent.toolCount} tools
+                            {agent.toolCount} 个工具
                           </span>
                           <span
                             style={{
@@ -583,7 +583,7 @@ export default function SubAgentTree({ className }: Props) {
                               fontWeight: 600,
                             }}
                           >
-                            {agent.mode}
+                            {agent.mode === "sync" ? "同步" : "异步"}
                           </span>
                         </div>
 
@@ -597,7 +597,7 @@ export default function SubAgentTree({ className }: Props) {
                             fontFamily: "var(--font-mono)",
                           }}
                         >
-                          {isActive ? "Running..." : "Completed"}
+                          {isActive ? "运行中..." : "已完成"}
                         </div>
                       </div>
                     </motion.div>
@@ -618,8 +618,7 @@ export default function SubAgentTree({ className }: Props) {
               fontSize: 14,
             }}
           >
-            Click "Spawn Agent" to create sub-agents and see how they connect to
-            the parent
+            点击“创建 Agent”以生成子 Agent，并查看它们如何连接到父级
           </div>
         )}
       </div>
@@ -682,7 +681,7 @@ export default function SubAgentTree({ className }: Props) {
                     fontWeight: 600,
                   }}
                 >
-                  {selected.status}
+                  {selected.status === "running" ? "运行中" : "已完成"}
                 </span>
               </div>
 
@@ -698,15 +697,15 @@ export default function SubAgentTree({ className }: Props) {
                 }}
               >
                 {[
-                  { label: "Model", value: selected.model },
-                  { label: "Tools", value: `${selected.toolCount} available` },
-                  { label: "Permission Mode", value: selected.permissionMode },
+                  { label: "模型", value: selected.model },
+                  { label: "工具", value: `${selected.toolCount} 个可用` },
+                  { label: "权限模式", value: selected.permissionMode },
                   {
                     label: "Abort Controller",
                     value:
                       selected.mode === "sync"
-                        ? "Shared (ESC kills both)"
-                        : "Independent (survives ESC)",
+                        ? "共享 (ESC 终止两者)"
+                        : "独立 (不受 ESC 影响)",
                   },
                 ].map((item) => (
                   <div
@@ -763,7 +762,7 @@ export default function SubAgentTree({ className }: Props) {
                     letterSpacing: "0.05em",
                   }}
                 >
-                  Available Tools
+                  可用工具
                 </div>
                 <div
                   style={{
@@ -806,8 +805,8 @@ export default function SubAgentTree({ className }: Props) {
                   }}
                 >
                   {selected.mode === "sync"
-                    ? "Synchronous Execution"
-                    : "Asynchronous Execution"}
+                    ? "同步执行"
+                    : "异步执行"}
                 </div>
                 <div
                   style={{
@@ -817,8 +816,8 @@ export default function SubAgentTree({ className }: Props) {
                   }}
                 >
                   {selected.mode === "sync"
-                    ? "Blocks parent agent. Shares abort controller (ESC kills both). Parent iterates the runAgent() generator directly, yielding messages up the call stack."
-                    : "Runs in background independently. Gets its own abort controller (survives ESC). Results written to disk output file. Parent notified on completion via task-notification."}
+                    ? "阻塞父级 Agent。共享 Abort Controller（按 ESC 会同时终止两者）。父级直接迭代 runAgent() 生成器，将消息沿调用栈向上 yield。"
+                    : "在后台独立运行。拥有独立的 Abort Controller（不受 ESC 影响）。结果写入磁盘输出文件。完成后通过 task-notification 通知父级。"}
                 </div>
               </div>
             </div>

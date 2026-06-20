@@ -64,50 +64,50 @@ function useAnimatedNumber(value: number, duration = 300) {
 const BASE_SECTIONS: Section[] = [
   {
     id: "system",
-    label: "System identity",
-    sublabel: "CLI identity, code style rules",
+    label: "系统身份",
+    sublabel: "CLI 身份，代码风格规则",
     tokens: 200,
     region: "stable",
   },
   {
     id: "tools",
-    label: "Tool definitions",
-    sublabel: "Sorted alphabetically for stability",
+    label: "工具定义",
+    sublabel: "按字母顺序排序以保持稳定",
     tokens: 5000,
     region: "stable",
   },
   {
     id: "claudemd",
-    label: "CLAUDE.md content",
-    sublabel: "Project instructions, cached",
+    label: "CLAUDE.md 内容",
+    sublabel: "项目指令，已缓存",
     tokens: 1000,
     region: "stable",
   },
   {
     id: "memory",
-    label: "Memory files & date",
-    sublabel: "Memoized session date, per-session",
+    label: "记忆文件与日期",
+    sublabel: "会话日期记忆化，每会话独立",
     tokens: 800,
     region: "semi-stable",
   },
   {
     id: "history",
-    label: "Conversation history",
-    sublabel: "Grows each turn",
+    label: "对话历史",
+    sublabel: "随每轮对话增长",
     tokens: 0, // dynamic
     region: "semi-stable",
   },
   {
     id: "context",
-    label: "Current turn context",
-    sublabel: "Latest user message",
+    label: "当前轮次上下文",
+    sublabel: "最新用户消息",
     tokens: 500,
     region: "volatile",
   },
   {
     id: "results",
-    label: "Tool results",
-    sublabel: "Read/Grep/Bash outputs",
+    label: "工具结果",
+    sublabel: "Read/Grep/Bash 输出",
     tokens: 2000,
     region: "volatile",
   },
@@ -197,7 +197,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
       const toolsIdx = result.findIndex((s) => s.id === "tools");
       if (toolsIdx >= 0) {
         result[toolsIdx].tokens += EXTRA_TOOLS_TOKENS;
-        result[toolsIdx].sublabel = "Sorted + MCP tools (cache scope: per-user)";
+        result[toolsIdx].sublabel = "排序后 + MCP 工具（缓存范围：每用户）";
       }
     }
 
@@ -206,7 +206,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
       const systemIdx = result.findIndex((s) => s.id === "system");
       if (systemIdx >= 0) {
         result[systemIdx].tokens += 100;
-        result[systemIdx].sublabel = "CLI identity + thinking budget header";
+        result[systemIdx].sublabel = "CLI 身份 + 思考预算头部";
       }
     }
 
@@ -361,7 +361,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
               letterSpacing: 1,
             }}
           >
-            Prompt Structure
+            提示词结构
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -406,7 +406,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                           opacity: 0.8,
                         }}
                       >
-                        ephemeral cache (1h TTL)
+                        临时缓存 (1小时 TTL)
                       </span>
                       <div
                         style={{
@@ -552,7 +552,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                           letterSpacing: 0.5,
                         }}
                       >
-                        __DYNAMIC_BOUNDARY__
+                        __动态边界__
                       </span>
                       <div
                         style={{
@@ -590,7 +590,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   display: "inline-block",
                 }}
               />
-              Cached
+              已缓存
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <span
@@ -602,7 +602,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   display: "inline-block",
                 }}
               />
-              Volatile
+              易变
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <span
@@ -614,7 +614,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   display: "inline-block",
                 }}
               />
-              Cache boundary
+              缓存边界
             </span>
           </div>
         </div>
@@ -633,13 +633,13 @@ export default function PromptCacheArchitecture({ className }: Props) {
                 letterSpacing: 1,
               }}
             >
-              Controls
+              控制项
             </div>
 
             <div style={{ marginBottom: 14 }}>
               <div style={labelStyle}>
-                <span>Conversation length</span>
-                <span style={valueStyle}>{conversationLength} turns</span>
+                <span>对话长度</span>
+                <span style={valueStyle}>{conversationLength} 轮</span>
               </div>
               <input
                 type="range"
@@ -720,7 +720,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                     lineHeight: 1.2,
                   }}
                 >
-                  Extended thinking
+                  扩展思考
                   {thinkingLatched && (
                     <span
                       style={{
@@ -730,7 +730,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                         fontFamily: "var(--font-mono)",
                       }}
                     >
-                      Sticky latch: stays on forever
+                      粘性锁定：永久保持开启
                     </span>
                   )}
                 </span>
@@ -785,7 +785,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                     lineHeight: 1.2,
                   }}
                 >
-                  MCP tools mid-session
+                  会话中途添加 MCP 工具
                   <span
                     style={{
                       fontSize: 10,
@@ -794,7 +794,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                       fontFamily: "var(--font-mono)",
                     }}
                   >
-                    {extraTools ? "Cache break! +3K tokens in prefix" : "Toggle to see cache invalidation"}
+                    {extraTools ? "缓存失效！前缀增加 3K tokens" : "切换以查看缓存失效"}
                   </span>
                 </span>
               </button>
@@ -847,7 +847,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                     fontFamily: "var(--font-serif)",
                   }}
                 >
-                  Beta headers
+                  Beta 头部信息
                 </span>
               </button>
             </div>
@@ -865,7 +865,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                 letterSpacing: 1,
               }}
             >
-              Cache Hit Rate
+              缓存命中率
             </div>
             <div
               style={{
@@ -899,7 +899,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   mixBlendMode: cacheHitPercent > 50 ? "normal" : "normal",
                 }}
               >
-                {animCachePercent.toFixed(0)}% cached
+                {animCachePercent.toFixed(0)}% 已缓存
               </div>
             </div>
           </div>
@@ -922,7 +922,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                 letterSpacing: 1,
               }}
             >
-              Cost This Turn
+              本轮成本
             </div>
 
             <div
@@ -939,7 +939,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   color: colors.textSecondary,
                 }}
               >
-                With cache
+                使用缓存
               </span>
               <span
                 style={{
@@ -969,7 +969,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   color: colors.textSecondary,
                 }}
               >
-                Without cache
+                不使用缓存
               </span>
               <span
                 style={{
@@ -992,10 +992,10 @@ export default function PromptCacheArchitecture({ className }: Props) {
               }}
             >
               <div>
-                Total: ~{formatTokens(Math.round(animTotalTokens))} tokens
+                总计: ~{formatTokens(Math.round(animTotalTokens))} tokens
               </div>
               <div style={{ color: colors.green }}>
-                Savings:{" "}
+                节省:{" "}
                 {((1 - costWithCache / Math.max(costWithoutCache, 0.0001)) * 100).toFixed(0)}%
                 ({formatCost(costWithoutCache - costWithCache)} saved)
               </div>
@@ -1022,11 +1022,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   lineHeight: 1.5,
                 }}
               >
-                <strong>Sticky latch:</strong> Once extended thinking is
-                enabled, the <code>thinkingClearLatched</code> field stays
-                true. Toggling it off would bust ~60K tokens of cached
-                prompt. The latch sacrifices mid-session toggling to preserve
-                the cache.
+                <strong>粘性锁定：</strong>一旦启用扩展思考，<code>thinkingClearLatched</code> 字段将保持为 true。将其关闭会导致约 60K tokens 的缓存提示词失效。该锁定机制牺牲了会话中途切换的功能以保留缓存。
               </motion.div>
             )}
           </AnimatePresence>
@@ -1052,10 +1048,7 @@ export default function PromptCacheArchitecture({ className }: Props) {
                   lineHeight: 1.5,
                 }}
               >
-                <strong>Cache invalidation!</strong> Adding tools mid-session
-                changes the sorted tool list in the stable prefix. Everything
-                after the change point is a cache miss. ~
-                {formatTokens(cachedTokens)} tokens must be reprocessed.
+                <strong>缓存失效！</strong>在会话中途添加工具会改变稳定前缀中已排序的工具列表。更改点之后的所有内容都将导致缓存未命中。约 {formatTokens(cachedTokens)} tokens 需要重新处理。
               </motion.div>
             )}
           </AnimatePresence>

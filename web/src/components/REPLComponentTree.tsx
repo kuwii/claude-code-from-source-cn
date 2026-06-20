@@ -20,14 +20,14 @@ const componentTree: ComponentNode = {
   id: "repl",
   name: "REPL",
   description:
-    "Root orchestrator of the entire interactive experience. ~9 sections: imports, feature flags, state management, QueryGuard, message handling, tool permission flow, session management, keybinding setup, and render tree. Compiled by React Compiler throughout.",
+    "整个交互体验的根协调器。包含约 9 个部分：imports、feature flags、状态管理、QueryGuard、消息处理、工具权限流程、会话管理、快捷键设置以及渲染树。全程由 React Compiler 编译。",
   lines: "~5,000",
   keyProps: ["bootstrapState", "commands", "history", "sessionId"],
   reRenderTriggers: [
-    "Message stream tokens",
-    "Tool use status changes",
-    "Permission dialog open/close",
-    "Input mode changes",
+    "消息流 token",
+    "工具使用状态变更",
+    "权限对话框打开/关闭",
+    "输入模式变更",
   ],
   isHotPath: true,
   children: [
@@ -35,13 +35,13 @@ const componentTree: ComponentNode = {
       id: "message-list",
       name: "VirtualMessageList",
       description:
-        "Renders conversation messages with virtual scrolling. Only mounts messages visible in the viewport plus a buffer. Height cache per message, invalidated on terminal column change. Jump handle for search navigation.",
+        "通过虚拟滚动渲染对话消息。仅挂载视口内可见的消息及缓冲区消息。按消息缓存高度，在终端列宽变化时失效。包含用于搜索导航的跳转句柄。",
       lines: "~800",
       keyProps: ["messages", "scrollTop", "viewportHeight", "searchQuery"],
       reRenderTriggers: [
-        "New message added",
-        "Scroll position change",
-        "Search highlight update",
+        "新增消息",
+        "滚动位置变化",
+        "搜索高亮更新",
       ],
       isHotPath: true,
       children: [
@@ -49,22 +49,22 @@ const componentTree: ComponentNode = {
           id: "user-message",
           name: "UserMessage",
           description:
-            "User input blocks. Wrapped in MessageRow. Includes the prompt text and any attached images.",
+            "用户输入块。包裹在 MessageRow 中。包含提示词文本及所有附带的图片。",
           lines: "~150",
           keyProps: ["content", "images", "index"],
-          reRenderTriggers: ["Mount only (static content)"],
+          reRenderTriggers: ["仅在挂载时（静态内容）"],
           isHotPath: false,
         },
         {
           id: "assistant-message",
           name: "StreamingMarkdown",
           description:
-            "Model output with streaming markdown. Token caching via module-level LRU (500 entries). Fast-path detection bypasses GFM parser for plain text. Lazy syntax highlighting via React Suspense.",
+            "流式输出的模型 Markdown 内容。通过模块级 LRU（500 条）进行 token 缓存。针对纯文本的快速路径检测可绕过 GFM 解析器。通过 React Suspense 实现语法高亮的懒加载。",
           lines: "~400",
           keyProps: ["content", "isStreaming", "highlight"],
           reRenderTriggers: [
-            "Every new token (10-50/sec)",
-            "Syntax highlight resolve",
+            "每个新 token（10-50/秒）",
+            "语法高亮解析完成",
           ],
           isHotPath: true,
         },
@@ -72,12 +72,12 @@ const componentTree: ComponentNode = {
           id: "tool-result",
           name: "ToolUseBlock",
           description:
-            "Tool execution results. Shows tool name, status (running/done/error), and collapsible output. Includes elapsed time counter while running.",
+            "工具执行结果。显示工具名称、状态（运行中/已完成/错误）及可折叠的输出内容。运行期间包含耗时计数器。",
           lines: "~300",
           keyProps: ["toolName", "status", "result", "elapsed"],
           reRenderTriggers: [
-            "Status change (running->done)",
-            "Elapsed time tick",
+            "状态变更（运行中->已完成）",
+            "耗时计时器跳动",
           ],
           isHotPath: false,
         },
@@ -85,10 +85,10 @@ const componentTree: ComponentNode = {
           id: "offscreen-freeze",
           name: "OffscreenFreeze",
           description:
-            "Performance optimization: caches React element and freezes subtree when message scrolls above viewport. Prevents timer-based updates (spinners, elapsed counters) in off-screen messages from triggering terminal resets.",
+            "性能优化：当消息滚动到视口上方时，缓存 React element 并冻结子树。防止屏外消息中基于定时器的更新（如加载动画、耗时计数器）触发终端重置。",
           lines: "~60",
           keyProps: ["isVisible", "children"],
-          reRenderTriggers: ["Visibility change only"],
+          reRenderTriggers: ["仅在可见性变化时"],
           isHotPath: false,
         },
       ],
@@ -97,30 +97,30 @@ const componentTree: ComponentNode = {
       id: "input-area",
       name: "PromptInput",
       description:
-        "Text input with keybinding support, vim mode, and autocomplete. Manages insert/normal mode state, cursor position, and multi-line editing.",
+        "支持快捷键、vim 模式和自动补全的文本输入框。管理插入/普通模式状态、光标位置及多行编辑。",
       lines: "~600",
       keyProps: ["mode", "value", "cursorPosition", "vimState"],
-      reRenderTriggers: ["Every keystroke", "Mode change (insert/normal/vim)"],
+      reRenderTriggers: ["每次按键", "模式变更（insert/normal/vim）"],
       isHotPath: true,
       children: [
         {
           id: "prompt-line",
           name: "PromptLine",
           description:
-            'The ">" prompt with mode indicator. Shows current mode (insert/normal/vim), pending chord prefix, and model name.',
+            '带模式指示器的 ">" 提示符。显示当前模式（insert/normal/vim）、待处理的组合键前缀及模型名称。',
           lines: "~80",
           keyProps: ["mode", "pendingChord", "modelName"],
-          reRenderTriggers: ["Mode change", "Chord state change"],
+          reRenderTriggers: ["模式变更", "组合键状态变更"],
           isHotPath: false,
         },
         {
           id: "multi-line-editor",
           name: "MultiLineEditor",
           description:
-            "Text editor component handling multi-line input. Cursor declaration via useDeclaredCursor for IME/CJK support. Word wrap with grapheme boundary awareness.",
+            "处理多行输入的文本编辑器组件。通过 useDeclaredCursor 声明光标以支持 IME/CJK。具备字素边界感知的自动换行功能。",
           lines: "~350",
           keyProps: ["value", "cursor", "selection", "wrap"],
-          reRenderTriggers: ["Every keystroke", "Selection change"],
+          reRenderTriggers: ["每次按键", "选区变化"],
           isHotPath: true,
         },
       ],
@@ -129,52 +129,52 @@ const componentTree: ComponentNode = {
       id: "status-bar",
       name: "StatusLine",
       description:
-        "Bottom bar with model name, cumulative cost, token count, and background task indicators. Updates on every API response with new token/cost data.",
+        "底部状态栏，显示模型名称、累计成本、token 数量及后台任务指示器。在每次 API 响应返回新的 token/成本数据时更新。",
       lines: "~120",
       keyProps: ["model", "cost", "tokens", "activeTasks"],
-      reRenderTriggers: ["API response (cost/token update)", "Task status change"],
+      reRenderTriggers: ["API 响应（成本/token 更新）", "任务状态变更"],
       isHotPath: false,
     },
     {
       id: "permission-prompt",
       name: "PermissionRequest",
       description:
-        "Modal dialog for tool permission approval. Shows tool name, description, suggested permissions. Handles y/n/a (allow once/deny/always allow) keybindings via Confirmation context.",
+        "用于工具权限审批的模态对话框。显示工具名称、描述及建议的权限。通过 Confirmation context 处理 y/n/a（允许一次/拒绝/始终允许）快捷键。",
       lines: "~250",
       keyProps: ["toolName", "description", "suggestions", "onAllow", "onDeny"],
-      reRenderTriggers: ["New permission request"],
+      reRenderTriggers: ["新的权限请求"],
       isHotPath: false,
     },
     {
       id: "keybinding-setup",
       name: "KeybindingSetup",
       description:
-        "Wires keybinding providers: GlobalKeybindingHandlers, CommandKeybindingHandlers, CancelRequestHandler. Manages context registration and chord interceptor.",
+        "连接快捷键提供者：GlobalKeybindingHandlers、CommandKeybindingHandlers、CancelRequestHandler。管理上下文注册及组合键拦截器。",
       lines: "~200",
       keyProps: ["bindings", "contexts", "handlers"],
-      reRenderTriggers: ["Context activation/deactivation"],
+      reRenderTriggers: ["上下文激活/停用"],
       isHotPath: false,
     },
     {
       id: "logo-header",
       name: "LogoHeader",
       description:
-        "Session header with Claude branding, model info, and session ID. Rendered once at the top of the message list.",
+        "带有 Claude 品牌标识、模型信息及会话 ID 的会话头部。在消息列表顶部仅渲染一次。",
       lines: "~40",
       keyProps: ["sessionId", "model"],
-      reRenderTriggers: ["Mount only"],
+      reRenderTriggers: ["仅在挂载时"],
       isHotPath: false,
     },
   ],
 };
 
 const dataFlowSteps = [
-  { from: "input-area", label: "User types and presses Enter" },
-  { from: "repl", label: "REPL calls query() with message" },
-  { from: "assistant-message", label: "Tokens stream into StreamingMarkdown" },
-  { from: "tool-result", label: "Tool use blocks appear for tool calls" },
-  { from: "status-bar", label: "StatusLine updates cost/token counts" },
-  { from: "message-list", label: "VirtualMessageList scrolls to bottom" },
+  { from: "input-area", label: "用户输入并按下回车" },
+  { from: "repl", label: "REPL 携带消息调用 query()" },
+  { from: "assistant-message", label: "Token 流入 StreamingMarkdown" },
+  { from: "tool-result", label: "工具调用时出现工具使用块" },
+  { from: "status-bar", label: "StatusLine 更新成本/token 计数" },
+  { from: "message-list", label: "VirtualMessageList 滚动到底部" },
 ];
 
 // --- Helpers ---
@@ -525,7 +525,7 @@ export default function REPLComponentTree({ className }: Props) {
               fontWeight: 600,
             }}
           >
-            REPL Component Hierarchy
+            REPL 组件层级
           </span>
           <span
             style={{
@@ -538,7 +538,7 @@ export default function REPLComponentTree({ className }: Props) {
               fontWeight: 700,
             }}
           >
-            ~5,000 lines
+            ~5,000 行
           </span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -559,7 +559,7 @@ export default function REPLComponentTree({ className }: Props) {
               transition: "all 0.2s",
             }}
           >
-            {showDataFlow ? "Stop Flow" : "Show Data Flow"}
+            {showDataFlow ? "停止演示" : "展示数据流"}
           </button>
           <button
             onClick={() =>
@@ -580,7 +580,7 @@ export default function REPLComponentTree({ className }: Props) {
               cursor: "pointer",
             }}
           >
-            {expandedIds.size > 3 ? "Collapse" : "Expand All"}
+            {expandedIds.size > 3 ? "折叠全部" : "展开全部"}
           </button>
         </div>
       </div>
@@ -649,7 +649,7 @@ export default function REPLComponentTree({ className }: Props) {
                     marginBottom: 12,
                   }}
                 >
-                  {selectedNode.lines} lines
+                  {selectedNode.lines} 行
                   {selectedNode.isHotPath && (
                     <span style={{ color: colors.hotPathBorder }}>
                       {" "}
@@ -681,7 +681,7 @@ export default function REPLComponentTree({ className }: Props) {
                     marginBottom: 6,
                   }}
                 >
-                  Key Props
+                  核心 Props
                 </div>
                 <div
                   style={{
@@ -720,7 +720,7 @@ export default function REPLComponentTree({ className }: Props) {
                     marginBottom: 6,
                   }}
                 >
-                  Re-render Triggers
+                  重渲染触发条件
                 </div>
                 <div
                   style={{
@@ -785,7 +785,7 @@ export default function REPLComponentTree({ className }: Props) {
                 marginBottom: 8,
               }}
             >
-              Message Flow: User Input to Rendered Output
+              消息流：从用户输入到渲染输出
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {dataFlowSteps.map((step, index) => (

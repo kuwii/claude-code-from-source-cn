@@ -23,48 +23,48 @@ interface ParallelOp {
 const phases: Phase[] = [
   {
     id: "fast-path",
-    label: "Fast-path check",
+    label: "快速路径检查",
     startMs: 0,
     endMs: 5,
-    description: "Check for --version, --help",
+    description: "检查 --version、--help 参数",
     details:
-      "If matched, respond and exit immediately. No module loading, no I/O. This is why `claude --version` returns instantly.",
+      "若匹配，则立即响应并退出。不加载模块，无 I/O 操作。这就是 `claude --version` 能瞬间返回的原因。",
   },
   {
     id: "module-loading",
-    label: "Module loading",
+    label: "模块加载",
     startMs: 0,
     endMs: 80,
-    description: "Import all TypeScript modules",
+    description: "导入所有 TypeScript 模块",
     details:
-      "Module-level side effects fire I/O during evaluation. This is the key insight: I/O overlaps with import resolution.",
+      "模块级别的副作用会在求值期间触发 I/O。这是关键洞察：I/O 与导入解析并行执行。",
   },
   {
     id: "init",
     label: "init()",
     startMs: 80,
     endMs: 95,
-    description: "Parse args, resolve config",
+    description: "解析参数，解析配置",
     details:
-      "Establish trust boundary. Determine session type (REPL vs one-shot). Config is frozen after this phase.",
+      "建立信任边界。确定会话类型（REPL 或单次执行）。此阶段结束后配置将被冻结。",
   },
   {
     id: "setup",
     label: "setup()",
     startMs: 95,
     endMs: 130,
-    description: "Load commands, agents, hooks, plugins",
+    description: "加载命令、Agent、Hook、插件",
     details:
-      "Parallel I/O for git status and CLAUDE.md reads. Results from module-level I/O are awaited here — they're already done.",
+      "并行执行 git status 和读取 CLAUDE.md 的 I/O 操作。此处等待模块级 I/O 的结果——它们此时已完成。",
   },
   {
     id: "first-call",
-    label: "First API call",
+    label: "首次 API 调用",
     startMs: 130,
     endMs: 240,
-    description: "Pre-warmed TCP+TLS connection",
+    description: "预热的 TCP+TLS 连接",
     details:
-      "System prompt construction and first request to the model. TCP+TLS handshake already completed during module loading.",
+      "构建系统提示词并向模型发送首次请求。TCP+TLS 握手已在模块加载期间完成。",
   },
 ];
 
@@ -75,23 +75,23 @@ const parallelOps: ParallelOp[] = [
     startMs: 10,
     endMs: 60,
     description:
-      "Subprocess spawned during module evaluation. Result cached and awaited in setup().",
+      "在模块求值期间生成的子进程。结果被缓存并在 setup() 中等待。",
   },
   {
     id: "claude-md",
-    label: "CLAUDE.md read",
+    label: "读取 CLAUDE.md",
     startMs: 15,
     endMs: 40,
     description:
-      "File read fired as module-level side effect. Contents used for system prompt construction.",
+      "作为模块级副作用触发的文件读取。内容用于构建系统提示词。",
   },
   {
     id: "tcp-tls",
-    label: "TCP+TLS preconnect",
+    label: "TCP+TLS 预连接",
     startMs: 20,
     endMs: 100,
     description:
-      "Connection to Anthropic API pre-warmed during module loading. Ready before first API call.",
+      "在模块加载期间预热与 Anthropic API 的连接。在首次 API 调用前即已就绪。",
   },
 ];
 
@@ -266,7 +266,7 @@ export default function BootstrapTimeline({ className }: Props) {
             color: colors.textSecondary,
           }}
         >
-          Sequential: <span style={{ textDecoration: "line-through" }}>~{SEQUENTIAL_MS}ms</span>
+          串行执行：<span style={{ textDecoration: "line-through" }}>~{SEQUENTIAL_MS}ms</span>
         </span>
         <span
           style={{
@@ -278,9 +278,9 @@ export default function BootstrapTimeline({ className }: Props) {
             fontWeight: 600,
           }}
         >
-          Parallel: ~{TOTAL_MS}ms{" "}
+          并行执行：~{TOTAL_MS}ms{" "}
           <span style={{ fontWeight: 400, opacity: 0.8 }}>
-            ({Math.round((1 - TOTAL_MS / SEQUENTIAL_MS) * 100)}% faster)
+            (快 {Math.round((1 - TOTAL_MS / SEQUENTIAL_MS) * 100)}%)
           </span>
         </span>
       </div>
@@ -340,7 +340,7 @@ export default function BootstrapTimeline({ className }: Props) {
             textTransform="uppercase"
             letterSpacing={1}
           >
-            PHASES
+            阶段
           </text>
 
           {/* Phase bars */}
@@ -421,7 +421,7 @@ export default function BootstrapTimeline({ className }: Props) {
             textTransform="uppercase"
             letterSpacing={1}
           >
-            PARALLEL I/O
+            并行 I/O
           </text>
 
           {/* Parallel operation bars */}
@@ -576,7 +576,7 @@ export default function BootstrapTimeline({ className }: Props) {
             transition: "opacity 0.2s",
           }}
         >
-          Play
+          播放
         </button>
         <button
           onClick={reset}
@@ -591,7 +591,7 @@ export default function BootstrapTimeline({ className }: Props) {
             cursor: "pointer",
           }}
         >
-          Reset
+          重置
         </button>
       </div>
 
@@ -677,7 +677,7 @@ export default function BootstrapTimeline({ className }: Props) {
               opacity: 0.85,
             }}
           />
-          Pipeline phase
+          流水线阶段
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span
@@ -689,9 +689,9 @@ export default function BootstrapTimeline({ className }: Props) {
               display: "inline-block",
             }}
           />
-          Parallel I/O (overlapping)
+          并行 I/O（重叠执行）
         </span>
-        <span>Hover bars for details</span>
+        <span>悬停条形图查看详情</span>
       </div>
     </div>
   );

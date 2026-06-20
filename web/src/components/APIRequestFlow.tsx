@@ -47,16 +47,16 @@ const normalSteps: SequenceStep[] = [
     to: "factory",
     label: "createStream(messages)",
     description:
-      "The query loop initiates an API call, passing the full message array and configuration.",
+      "查询循环发起 API 调用，传入完整的消息数组和配置。",
   },
   {
     id: 2,
     from: "factory",
     to: "factory",
-    label: "Provider dispatch",
+    label: "Provider 分发",
     sublabel: "Direct / Bedrock / Vertex",
     description:
-      "Client factory selects the provider via environment variables. All four SDKs are cast to a uniform Anthropic interface.",
+      "客户端工厂通过环境变量选择 Provider。所有四种 SDK 均被转换为统一的 Anthropic 接口。",
   },
   {
     id: 3,
@@ -65,26 +65,26 @@ const normalSteps: SequenceStep[] = [
     label: "Headers + system prompt",
     sublabel: "beta headers, sticky latches, cache_control",
     description:
-      "Beta headers assembled with sticky latches (once set to true, never reverts). System prompt split at the dynamic boundary for optimal caching.",
+      "组装 Beta headers 并应用 sticky latches（一旦设为 true 便不可撤销）。System prompt 在动态边界处拆分以实现最优缓存。",
   },
   {
     id: 4,
     from: "api",
     to: "cache",
-    label: "Cache prefix check",
-    sublabel: "50-70K token prefix",
+    label: "缓存前缀检查",
+    sublabel: "50-70K token 前缀",
     description:
-      "Server checks if the stable prompt prefix matches a cached entry. Static sections get global scope; dynamic sections get per-session scope.",
+      "服务器检查稳定的 prompt 前缀是否匹配缓存条目。静态部分使用全局作用域；动态部分使用会话级作用域。",
     highlight: "cache",
   },
   {
     id: 5,
     from: "cache",
     to: "api",
-    label: "Cache HIT",
-    sublabel: "Saved ~$0.12 on 60K tokens",
+    label: "缓存命中",
+    sublabel: "60K tokens 节省约 $0.12",
     description:
-      "Cache hit on the static prefix. The server skips reprocessing 50-70K tokens of system prompt and early conversation history.",
+      "静态前缀缓存命中。服务器跳过了对 50-70K tokens 的 system prompt 及早期对话历史的重新处理。",
     highlight: "cache",
     tokens: 0,
   },
@@ -92,20 +92,20 @@ const normalSteps: SequenceStep[] = [
     id: 6,
     from: "api",
     to: "loop",
-    label: "SSE stream begins",
+    label: "SSE 流开始",
     sublabel: "Raw Stream<BetaRawMessageStreamEvent>",
     description:
-      "Response streams back as server-sent events. Uses raw SSE (not SDK's BetaMessageStream) to avoid O(n\u00B2) partial JSON parsing.",
+      "响应以 Server-Sent Events 形式流式返回。使用原生 SSE（而非 SDK 的 BetaMessageStream）以避免 O(n²) 的部分 JSON 解析开销。",
     tokens: 0,
   },
   {
     id: 7,
     from: "loop",
     to: "loop",
-    label: "Idle watchdog: 90s",
-    sublabel: "Resets on each chunk",
+    label: "空闲看门狗：90s",
+    sublabel: "每收到一个 chunk 重置",
     description:
-      "A setTimeout resets on every received chunk. If no chunks arrive for 90 seconds, the stream is aborted and a non-streaming fallback fires.",
+      "每接收到一个 chunk 都会重置 setTimeout。如果 90 秒内未收到任何 chunk，流将被中止并触发非流式降级方案。",
     highlight: "watchdog",
     tokens: 847,
   },
@@ -113,30 +113,30 @@ const normalSteps: SequenceStep[] = [
     id: 8,
     from: "api",
     to: "loop",
-    label: "Tokens streaming...",
-    sublabel: "content_block_delta events",
+    label: "Tokens 传输中...",
+    sublabel: "content_block_delta 事件",
     description:
-      "Text and tool_use blocks arrive incrementally. The streaming executor can start concurrency-safe tools before the response completes.",
+      "文本和 tool_use 块增量到达。流式执行器可在响应完成前启动并发安全的工具调用。",
     tokens: 2431,
   },
   {
     id: 9,
     from: "api",
     to: "loop",
-    label: "Stream complete",
-    sublabel: "message_stop event",
+    label: "流传输完成",
+    sublabel: "message_stop 事件",
     description:
-      "The final SSE event arrives. Response is parsed into an AssistantMessage with text blocks and tool_use blocks.",
+      "最后一个 SSE 事件到达。响应被解析为包含文本块和 tool_use 块的 AssistantMessage。",
     tokens: 3892,
   },
   {
     id: 10,
     from: "loop",
     to: "loop",
-    label: "Response parsed",
-    sublabel: "AssistantMessage + tool_use blocks",
+    label: "响应已解析",
+    sublabel: "AssistantMessage + tool_use 块",
     description:
-      "The loop processes the complete response: extracts tool calls, updates state, checks for errors, and prepares for the next iteration.",
+      "循环处理完整响应：提取工具调用、更新状态、检查错误并为下一次迭代做准备。",
     tokens: 3892,
   },
 ];
@@ -148,9 +148,9 @@ const errorSteps: SequenceStep[] = [
     from: "api",
     to: "loop",
     label: "529 Overloaded",
-    sublabel: "Server at capacity",
+    sublabel: "服务器满载",
     description:
-      "The API returns a 529 status. The withRetry() generator yields a SystemAPIErrorMessage so the UI can show retry status.",
+      "API 返回 529 状态码。withRetry() 生成器抛出一个 SystemAPIErrorMessage，以便 UI 显示重试状态。",
     highlight: "error",
     tokens: 0,
   },
@@ -158,10 +158,10 @@ const errorSteps: SequenceStep[] = [
     id: 8,
     from: "loop",
     to: "loop",
-    label: "Backoff: 1s",
-    sublabel: "Attempt 1 of 3",
+    label: "退避：1s",
+    sublabel: "第 1 次尝试，共 3 次",
     description:
-      "Exponential backoff begins. The retry progress appears as a natural part of the event stream, not a side-channel notification.",
+      "开始指数退避。重试进度作为事件流的自然组成部分呈现，而非旁路通知。",
     highlight: "retry",
     tokens: 0,
   },
@@ -169,10 +169,10 @@ const errorSteps: SequenceStep[] = [
     id: 9,
     from: "loop",
     to: "api",
-    label: "Retry request",
-    sublabel: "Same parameters",
+    label: "重试请求",
+    sublabel: "相同参数",
     description:
-      "The request is resent with identical parameters. Optionally downgrades fast mode on 529.",
+      "使用完全相同的参数重新发送请求。遇到 529 时可选择性降级 fast mode。",
     highlight: "retry",
     tokens: 0,
   },
@@ -180,9 +180,9 @@ const errorSteps: SequenceStep[] = [
     id: 10,
     from: "api",
     to: "loop",
-    label: "529 again",
-    sublabel: "Still overloaded",
-    description: "Second failure. Backoff interval doubles.",
+    label: "再次 529",
+    sublabel: "仍然过载",
+    description: "第二次失败。退避间隔翻倍。",
     highlight: "error",
     tokens: 0,
   },
@@ -190,10 +190,10 @@ const errorSteps: SequenceStep[] = [
     id: 11,
     from: "loop",
     to: "loop",
-    label: "Backoff: 2s",
-    sublabel: "Attempt 2 of 3",
+    label: "退避：2s",
+    sublabel: "第 2 次尝试，共 3 次",
     description:
-      "Longer wait. The generator yields status events that the UI renders as a loading indicator.",
+      "等待时间更长。生成器产出状态事件，UI 将其渲染为加载指示器。",
     highlight: "retry",
     tokens: 0,
   },
@@ -201,9 +201,9 @@ const errorSteps: SequenceStep[] = [
     id: 12,
     from: "loop",
     to: "api",
-    label: "Retry request",
-    sublabel: "Attempt 3",
-    description: "Final retry attempt with 4s backoff if this fails too.",
+    label: "重试请求",
+    sublabel: "第 3 次尝试",
+    description: "最后一次重试，若仍失败将采用 4s 退避。",
     highlight: "retry",
     tokens: 0,
   },
@@ -211,10 +211,10 @@ const errorSteps: SequenceStep[] = [
     id: 13,
     from: "api",
     to: "loop",
-    label: "200 OK -- streaming",
-    sublabel: "Recovery successful",
+    label: "200 OK -- 流式传输",
+    sublabel: "恢复成功",
     description:
-      "The request succeeds on retry. Normal streaming resumes. The earlier errors were withheld from the consumer.",
+      "重试成功。正常流式传输恢复。之前的错误已被屏蔽，不会传递给消费端。",
     tokens: 3892,
   },
 ];
@@ -222,10 +222,10 @@ const errorSteps: SequenceStep[] = [
 // --- Participant Layout ---
 
 const participants: { id: Participant; label: string; short: string }[] = [
-  { id: "loop", label: "Query Loop", short: "Loop" },
-  { id: "factory", label: "Client Factory", short: "Factory" },
+  { id: "loop", label: "查询循环", short: "循环" },
+  { id: "factory", label: "客户端工厂", short: "工厂" },
   { id: "api", label: "Provider API", short: "API" },
-  { id: "cache", label: "Cache", short: "Cache" },
+  { id: "cache", label: "缓存", short: "缓存" },
 ];
 
 const participantX: Record<Participant, number> = {
@@ -429,7 +429,7 @@ export default function APIRequestFlow({
             color: colors.text,
           }}
         >
-          API Request / Response Lifecycle
+          API 请求 / 响应生命周期
         </h3>
         <p
           style={{
@@ -439,8 +439,7 @@ export default function APIRequestFlow({
             lineHeight: 1.5,
           }}
         >
-          A single API call traced from the query loop through provider
-          selection, caching, streaming, and error recovery.
+          追踪单次 API 调用的全过程：从查询循环到 Provider 选择、缓存、流式传输及错误恢复。
         </p>
       </div>
 
@@ -469,10 +468,10 @@ export default function APIRequestFlow({
           }}
         >
           {isPlaying
-            ? "\u23F8 Pause"
+            ? "\u23F8 暂停"
             : currentStep >= steps.length - 1
-              ? "\u21BB Replay"
-              : "\u25B6 Play"}
+              ? "\u21BB 重播"
+              : "\u25B6 播放"}
         </button>
 
         <button
@@ -495,7 +494,7 @@ export default function APIRequestFlow({
             fontSize: 13,
           }}
         >
-          Step \u25B6\u258F
+          单步 \u25B6\u258F
         </button>
 
         <button
@@ -511,7 +510,7 @@ export default function APIRequestFlow({
             fontSize: 13,
           }}
         >
-          Reset
+          重置
         </button>
 
         <label
@@ -532,7 +531,7 @@ export default function APIRequestFlow({
             onChange={(e) => setSimulateError(e.target.checked)}
             style={{ accentColor: colors.red }}
           />
-          Simulate 529 error
+          模拟 529 错误
         </label>
       </div>
 
@@ -585,7 +584,7 @@ export default function APIRequestFlow({
               gap: 8,
             }}
           >
-            <span style={{ color: colors.blue }}>Watchdog:</span>
+            <span style={{ color: colors.blue }}>看门狗:</span>
             <span
               style={{
                 fontWeight: 700,
@@ -618,7 +617,7 @@ export default function APIRequestFlow({
                 fontWeight: 600,
               }}
             >
-              $ Cache saved ~60K tokens
+              $ 缓存节省 ~60K tokens
             </motion.div>
           )}
 
@@ -952,7 +951,7 @@ export default function APIRequestFlow({
                 color: colors.textMuted,
               }}
             >
-              Press Play or Step to begin the API call sequence.
+              点击“播放”或“单步”开始 API 调用序列演示。
             </div>
           )}
         </div>
@@ -987,7 +986,7 @@ export default function APIRequestFlow({
                 marginBottom: 4,
               }}
             >
-              Step {currentStep + 1}: {steps[currentStep].label}
+              步骤 {currentStep + 1}: {steps[currentStep].label}
             </div>
             {steps[currentStep].description}
           </motion.div>

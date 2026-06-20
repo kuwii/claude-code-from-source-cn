@@ -55,8 +55,8 @@ interface ChainStep {
 const chainSteps: ChainStep[] = [
   {
     number: 1,
-    title: "Authentication Required",
-    description: "Server rejects unauthenticated request",
+    title: "需要身份验证",
+    description: "服务器拒绝未认证的请求",
     method: "ANY",
     url: "/tools/list",
     result: "401 Unauthorized",
@@ -65,8 +65,8 @@ const chainSteps: ChainStep[] = [
   },
   {
     number: 2,
-    title: "Resource Discovery",
-    description: "RFC 9728 probe for protected resource metadata",
+    title: "资源发现",
+    description: "基于 RFC 9728 探测受保护资源的元数据",
     method: "GET",
     url: "/.well-known/oauth-protected-resource",
     result: '{ "authorization_servers": ["https://auth.example.com"] }',
@@ -75,16 +75,16 @@ const chainSteps: ChainStep[] = [
   },
   {
     number: 3,
-    title: "Extract Auth Server",
-    description: "Pick first authorization server from the list",
+    title: "提取授权服务器",
+    description: "从列表中选择第一个授权服务器",
     result: "authorization_servers[0]",
     accent: "#60a5fa",
     phase: "discovery",
   },
   {
     number: 4,
-    title: "Server Configuration",
-    description: "RFC 8414 OpenID discovery for endpoints",
+    title: "服务器配置",
+    description: "基于 RFC 8414 OpenID 发现端点信息",
     method: "GET",
     url: "/.well-known/openid-configuration",
     result: '{ "token_endpoint", "authorization_endpoint", ... }',
@@ -93,16 +93,16 @@ const chainSteps: ChainStep[] = [
   },
   {
     number: 5,
-    title: "PKCE Challenge",
-    description: "Generate cryptographic code verifier and challenge",
-    result: "code_verifier = random(43) \u2192 code_challenge = SHA256(verifier)",
+    title: "PKCE 质询",
+    description: "生成加密代码验证器与质询值",
+    result: "code_verifier = random(43) → code_challenge = SHA256(verifier)",
     accent: "#22c55e",
     phase: "exchange",
   },
   {
     number: 6,
-    title: "Authorization + Token Exchange",
-    description: "Redirect user to authorize, then exchange code for token",
+    title: "授权与令牌交换",
+    description: "重定向用户进行授权，随后用授权码换取令牌",
     method: "POST",
     url: "/oauth/token",
     result: '{ "access_token": "eyJ..." }',
@@ -114,9 +114,9 @@ const chainSteps: ChainStep[] = [
 // --- Phase labels ---
 
 const phaseLabels: Record<string, { label: string; color: string }> = {
-  discovery: { label: "Discovery", color: "#60a5fa" },
-  configuration: { label: "Configuration", color: "#c084fc" },
-  exchange: { label: "Token Exchange", color: "#22c55e" },
+  discovery: { label: "发现阶段", color: "#60a5fa" },
+  configuration: { label: "配置阶段", color: "#c084fc" },
+  exchange: { label: "令牌交换", color: "#22c55e" },
 };
 
 // --- Down Arrow ---
@@ -360,7 +360,7 @@ export default function OAuthDiscoveryChain({
           fontFamily: "var(--font-mono)",
         }}
       >
-        OAuth 2.0 + PKCE Discovery Chain
+        OAuth 2.0 + PKCE 发现链路
       </motion.div>
 
       {chainSteps.map((step, i) => {

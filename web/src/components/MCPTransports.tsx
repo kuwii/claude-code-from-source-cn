@@ -37,190 +37,190 @@ const transports: TransportType[] = [
   {
     id: "stdio",
     name: "stdio",
-    category: "Local",
+    category: "本地",
     categoryColor: "#4ade80",
-    description: "Subprocess with stdin/stdout JSON-RPC. Default when type is omitted.",
-    howItWorks: "Claude Code spawns a child process. JSON-RPC messages are piped through stdin (client to server) and stdout (server to client). No network, no auth.",
-    whenToUse: "Local tools: filesystem access, database queries, custom scripts. Most common transport.",
-    connectionFlow: ["Spawn subprocess", "Pipe stdin/stdout", "Send tools/list", "Ready"],
+    description: "通过 stdin/stdout 进行 JSON-RPC 通信的子进程。省略 type 时的默认选项。",
+    howItWorks: "Claude Code 生成一个子进程。JSON-RPC 消息通过 stdin（客户端到服务器）和 stdout（服务器到客户端）进行管道传输。无需网络，无需身份验证。",
+    whenToUse: "本地工具：文件系统访问、数据库查询、自定义脚本。最常用的传输方式。",
+    connectionFlow: ["生成子进程", "管道连接 stdin/stdout", "发送 tools/list", "就绪"],
   },
   {
     id: "sse",
     name: "SSE (Server-Sent Events)",
-    category: "Remote",
+    category: "远程",
     categoryColor: "#60a5fa",
-    description: "Legacy HTTP transport. Client POSTs requests, server pushes responses via SSE stream.",
-    howItWorks: "Client establishes an SSE connection for server-to-client messages. Client-to-server messages are sent via HTTP POST. Widely deployed but being superseded.",
-    whenToUse: "Legacy MCP servers deployed before 2025. Still common in the ecosystem.",
-    connectionFlow: ["HTTP GET /sse", "SSE stream established", "POST requests", "SSE responses"],
+    description: "旧版 HTTP 传输方式。客户端通过 POST 发送请求，服务器通过 SSE 流推送响应。",
+    howItWorks: "客户端建立 SSE 连接以接收服务器到客户端的消息。客户端到服务器的消息通过 HTTP POST 发送。部署广泛，但正逐渐被取代。",
+    whenToUse: "2025 年之前部署的旧版 MCP 服务器。在生态系统中仍然常见。",
+    connectionFlow: ["HTTP GET /sse", "建立 SSE 流", "POST 请求", "SSE 响应"],
   },
   {
     id: "http",
     name: "Streamable HTTP",
-    category: "Remote",
+    category: "远程",
     categoryColor: "#60a5fa",
-    description: "Current spec recommendation. POST with optional SSE for streaming responses.",
-    howItWorks: "Client sends JSON-RPC via HTTP POST. Server can respond with JSON (simple) or upgrade to SSE stream (streaming). Bidirectional via session IDs.",
-    whenToUse: "New remote MCP servers. The current specification recommendation.",
-    connectionFlow: ["POST /mcp", "Response: JSON or SSE", "Session ID tracked", "Retry on -32001"],
+    description: "当前规范推荐的方式。使用 POST 请求，并可选择通过 SSE 进行流式响应。",
+    howItWorks: "客户端通过 HTTP POST 发送 JSON-RPC 请求。服务器可以返回 JSON（简单响应）或升级为 SSE 流（流式响应）。通过 Session ID 实现双向通信。",
+    whenToUse: "新的远程 MCP 服务器。当前规范的推荐方式。",
+    connectionFlow: ["POST /mcp", "响应：JSON 或 SSE", "跟踪 Session ID", "遇到 -32001 时重试"],
   },
   {
     id: "ws",
     name: "WebSocket",
-    category: "Remote",
+    category: "远程",
     categoryColor: "#60a5fa",
-    description: "Full-duplex bidirectional communication. Rare in practice.",
-    howItWorks: "Standard WebSocket connection. JSON-RPC messages flow in both directions. Bun and Node have different WebSocket APIs -- runtime split required.",
-    whenToUse: "When bidirectional server-initiated communication is needed. Rare outside IDE integrations.",
-    connectionFlow: ["WS handshake", "Bidirectional channel", "JSON-RPC both ways", "Close on disconnect"],
+    description: "全双工双向通信。实际应用中较少见。",
+    howItWorks: "标准的 WebSocket 连接。JSON-RPC 消息双向流动。Bun 和 Node 的 WebSocket API 不同——需要针对运行时进行区分处理。",
+    whenToUse: "当需要服务器主动发起的双向通信时。除 IDE 集成外很少使用。",
+    connectionFlow: ["WS 握手", "双向通道", "双向 JSON-RPC", "断开连接时关闭"],
   },
   {
     id: "sdk",
     name: "SDK Transport",
-    category: "In-Process",
+    category: "进程内",
     categoryColor: "#a78bfa",
-    description: "Control messages over stdin/stdout for SDK-embedded scenarios.",
-    howItWorks: "Used when Claude Code runs as a subprocess via the SDK. Control messages (MCP requests) are multiplexed over the same stdin/stdout used for agent communication.",
-    whenToUse: "When building on top of Claude Code via the official SDK.",
-    connectionFlow: ["SDK spawns Claude Code", "Multiplex control messages", "MCP over stdin/stdout", "Shared channel"],
+    description: "用于 SDK 嵌入场景，通过 stdin/stdout 传输控制消息。",
+    howItWorks: "当 Claude Code 作为子进程通过 SDK 运行时使用。控制消息（MCP 请求）在与 Agent 通信所用的同一 stdin/stdout 通道上进行多路复用。",
+    whenToUse: "通过官方 SDK 在 Claude Code 之上进行构建时。",
+    connectionFlow: ["SDK 启动 Claude Code", "多路复用控制消息", "通过 stdin/stdout 传输 MCP", "共享通道"],
   },
   {
     id: "sse-ide",
     name: "IDE stdio",
     category: "IDE",
     categoryColor: "#f472b6",
-    description: "VS Code or JetBrains extension communicating via stdio channel.",
-    howItWorks: "IDE extension provides an MCP server through its extension API. Communication uses the IDE's built-in stdio channel rather than network.",
-    whenToUse: "VS Code extensions that expose MCP tools through the IDE's native channel.",
-    connectionFlow: ["IDE extension loads", "stdio channel opened", "MCP handshake", "Tools available"],
+    description: "VS Code 或 JetBrains 扩展通过 stdio 通道进行通信。",
+    howItWorks: "IDE 扩展通过其扩展 API 提供 MCP 服务器。通信使用 IDE 内置的 stdio 通道而非网络。",
+    whenToUse: "通过 IDE 原生通道暴露 MCP 工具的 VS Code 扩展。",
+    connectionFlow: ["加载 IDE 扩展", "打开 stdio 通道", "MCP 握手", "工具可用"],
   },
   {
     id: "ws-ide",
     name: "IDE WebSocket",
     category: "IDE",
     categoryColor: "#f472b6",
-    description: "IDE remote connection via WebSocket. Runtime-specific (Bun vs Node).",
-    howItWorks: "WebSocket connection to an IDE extension running remotely. Bun's WebSocket accepts proxy/TLS natively; Node requires the ws package.",
-    whenToUse: "Remote IDE connections (e.g., JetBrains Gateway, VS Code Remote).",
-    connectionFlow: ["WS connect to IDE", "Runtime detection", "Bun native / Node ws", "MCP ready"],
+    description: "通过 WebSocket 进行 IDE 远程连接。特定于运行时（Bun 与 Node）。",
+    howItWorks: "通过 WebSocket 连接到远程运行的 IDE 扩展。Bun 的 WebSocket 原生支持代理/TLS；Node 则需要 ws 包。",
+    whenToUse: "远程 IDE 连接（例如 JetBrains Gateway、VS Code Remote）。",
+    connectionFlow: ["WS 连接到 IDE", "运行时检测", "Bun 原生 / Node ws", "MCP 就绪"],
   },
   {
     id: "inprocess",
     name: "In-Process",
-    category: "In-Process",
+    category: "进程内",
     categoryColor: "#a78bfa",
-    description: "Linked transport pairs. Direct function calls. 63 lines total.",
-    howItWorks: "Two InProcessTransport instances are linked as peers. send() delivers via queueMicrotask() to prevent stack depth issues. close() cascades to peer.",
-    whenToUse: "Same-process MCP servers: Chrome MCP, Computer Use MCP. Zero network overhead.",
-    connectionFlow: ["Create linked pair", "queueMicrotask delivery", "Direct function calls", "Cascade close"],
+    description: "链接的传输对。直接函数调用。总共仅 63 行代码。",
+    howItWorks: "两个 InProcessTransport 实例作为对等体链接。send() 通过 queueMicrotask() 传递以防止栈深度问题。close() 会级联到对等体。",
+    whenToUse: "同进程 MCP 服务器：Chrome MCP、Computer Use MCP。零网络开销。",
+    connectionFlow: ["创建链接对", "queueMicrotask 传递", "直接函数调用", "级联关闭"],
   },
 ];
 
 const decisionTree: DecisionNode[] = [
   {
     id: "start",
-    question: "Where is your MCP server?",
+    question: "您的 MCP 服务器在哪里？",
     options: [
-      { label: "Same machine (local process)", next: "local" },
-      { label: "Remote service (HTTP/WS)", next: "remote" },
-      { label: "Same process (embedded)", next: "inprocess" },
-      { label: "IDE extension", next: "ide" },
+      { label: "同一台机器（本地进程）", next: "local" },
+      { label: "远程服务（HTTP/WS）", next: "remote" },
+      { label: "同一进程（嵌入式）", next: "inprocess" },
+      { label: "IDE 扩展", next: "ide" },
     ],
   },
   {
     id: "local",
     question: "",
     options: [],
-    result: "Use stdio -- no network, no auth, just pipes. The default and most common transport.",
+    result: "使用 stdio —— 无需网络，无需身份验证，仅通过管道通信。这是默认且最常用的传输方式。",
     resultTransport: "stdio",
   },
   {
     id: "remote",
-    question: "Does the server need streaming responses?",
+    question: "服务器是否需要流式响应？",
     options: [
-      { label: "Yes, streaming needed", next: "remote-stream" },
-      { label: "No, simple request/response", next: "remote-simple" },
-      { label: "Need full bidirectional", next: "remote-bidi" },
+      { label: "是，需要流式传输", next: "remote-stream" },
+      { label: "否，简单的请求/响应", next: "remote-simple" },
+      { label: "需要完全双向通信", next: "remote-bidi" },
     ],
   },
   {
     id: "remote-stream",
-    question: "Is the server a legacy (pre-2025) deployment?",
+    question: "服务器是否为旧版（2025 年之前）部署？",
     options: [
-      { label: "Yes, legacy server", next: "remote-legacy" },
-      { label: "No, new server", next: "remote-new" },
+      { label: "是，旧版服务器", next: "remote-legacy" },
+      { label: "否，新服务器", next: "remote-new" },
     ],
   },
   {
     id: "remote-legacy",
     question: "",
     options: [],
-    result: "Use SSE -- legacy but widely deployed. Server pushes responses via Server-Sent Events.",
+    result: "使用 SSE —— 虽为旧版但部署广泛。服务器通过 Server-Sent Events 推送响应。",
     resultTransport: "sse",
   },
   {
     id: "remote-new",
     question: "",
     options: [],
-    result: "Use Streamable HTTP -- current spec recommendation. POST with optional SSE upgrade.",
+    result: "使用 Streamable HTTP —— 当前规范推荐的方式。使用 POST 请求，并可选择升级为 SSE。",
     resultTransport: "http",
   },
   {
     id: "remote-simple",
     question: "",
     options: [],
-    result: "Use Streamable HTTP -- works for simple JSON responses too. The spec default for remote.",
+    result: "使用 Streamable HTTP —— 也适用于简单的 JSON 响应。远程连接的规范默认选项。",
     resultTransport: "http",
   },
   {
     id: "remote-bidi",
     question: "",
     options: [],
-    result: "Use WebSocket -- full-duplex bidirectional. Note: Bun/Node runtime split for ws package.",
+    result: "使用 WebSocket —— 全双工双向通信。注意：Bun/Node 运行时对 ws 包的处理有所不同。",
     resultTransport: "ws",
   },
   {
     id: "inprocess",
-    question: "Is the server built with the MCP SDK?",
+    question: "服务器是否使用 MCP SDK 构建？",
     options: [
-      { label: "Yes, SDK-based", next: "inprocess-sdk" },
-      { label: "No, custom server in same process", next: "inprocess-linked" },
+      { label: "是，基于 SDK", next: "inprocess-sdk" },
+      { label: "否，同一进程中的自定义服务器", next: "inprocess-linked" },
     ],
   },
   {
     id: "inprocess-sdk",
     question: "",
     options: [],
-    result: "Use SDK transport -- multiplexes MCP over the existing stdin/stdout channel.",
+    result: "使用 SDK transport —— 在现有的 stdin/stdout 通道上多路复用 MCP。",
     resultTransport: "sdk",
   },
   {
     id: "inprocess-linked",
     question: "",
     options: [],
-    result: "Use InProcessTransport -- linked pairs with queueMicrotask delivery. Only 63 lines.",
+    result: "使用 InProcessTransport —— 通过 queueMicrotask 传递的链接对。仅 63 行代码。",
     resultTransport: "inprocess",
   },
   {
     id: "ide",
-    question: "Is the IDE local or remote?",
+    question: "IDE 是本地的还是远程的？",
     options: [
-      { label: "Local IDE (VS Code, JetBrains)", next: "ide-local" },
-      { label: "Remote IDE (Gateway, Remote SSH)", next: "ide-remote" },
+      { label: "本地 IDE（VS Code、JetBrains）", next: "ide-local" },
+      { label: "远程 IDE（Gateway、Remote SSH）", next: "ide-remote" },
     ],
   },
   {
     id: "ide-local",
     question: "",
     options: [],
-    result: "Use IDE stdio -- communicates through the IDE's built-in extension channel.",
+    result: "使用 IDE stdio —— 通过 IDE 内置的扩展通道进行通信。",
     resultTransport: "sse-ide",
   },
   {
     id: "ide-remote",
     question: "",
     options: [],
-    result: "Use IDE WebSocket -- connects remotely. Handles Bun/Node runtime differences.",
+    result: "使用 IDE WebSocket —— 进行远程连接。能够处理 Bun/Node 运行时的差异。",
     resultTransport: "ws-ide",
   },
 ];
@@ -228,27 +228,27 @@ const decisionTree: DecisionNode[] = [
 const oauthSteps: OAuthStep[] = [
   {
     id: 1,
-    title: "Server Returns 401",
-    description: "MCP server requires authentication",
-    detail: "The initial request to the MCP server returns HTTP 401 Unauthorized. This triggers the OAuth discovery chain.",
+    title: "服务器返回 401",
+    description: "MCP 服务器要求身份验证",
+    detail: "对 MCP 服务器的初始请求返回 HTTP 401 Unauthorized。这将触发 OAuth 发现链。",
   },
   {
     id: 2,
-    title: "RFC 9728 Discovery",
-    description: "Probe /.well-known/oauth-protected-resource",
-    detail: "GET request to the server's well-known endpoint. If found, extract authorization_servers[0] and proceed to RFC 8414 discovery against that URL.",
+    title: "RFC 9728 发现",
+    description: "探测 /.well-known/oauth-protected-resource",
+    detail: "向服务器的 well-known 端点发送 GET 请求。如果找到，提取 authorization_servers[0] 并针对该 URL 继续进行 RFC 8414 发现。",
   },
   {
     id: 3,
-    title: "RFC 8414 Metadata",
-    description: "Discover authorization server metadata",
-    detail: "Fetch the OpenID/OAuth metadata document. Contains: token_endpoint, authorization_endpoint, supported scopes, PKCE requirements. Falls back to path-aware probing if not found.",
+    title: "RFC 8414 元数据",
+    description: "发现授权服务器元数据",
+    detail: "获取 OpenID/OAuth 元数据文档。包含：token_endpoint、authorization_endpoint、支持的 scopes、PKCE 要求。如果未找到，则回退到路径感知探测。",
   },
   {
     id: 4,
-    title: "OAuth 2.0 + PKCE Flow",
-    description: "Browser-based authorization with code verifier",
-    detail: "PKCE (Proof Key for Code Exchange) prevents authorization code interception. Generate code_verifier, compute code_challenge, redirect user to authorize, exchange code for tokens.",
+    title: "OAuth 2.0 + PKCE 流程",
+    description: "基于浏览器的授权及代码验证器",
+    detail: "PKCE（Proof Key for Code Exchange）可防止授权码被拦截。生成 code_verifier，计算 code_challenge，重定向用户进行授权，然后用授权码换取令牌。",
   },
 ];
 
@@ -331,9 +331,9 @@ export default function MCPTransports({ className }: Props) {
         }}
       >
         {([
-          { id: "grid" as View, label: "8 Transports" },
-          { id: "decision" as View, label: "Which Should I Use?" },
-          { id: "oauth" as View, label: "OAuth Discovery" },
+          { id: "grid" as View, label: "8 种传输方式" },
+          { id: "decision" as View, label: "我该用哪种？" },
+          { id: "oauth" as View, label: "OAuth 发现" },
         ]).map((tab) => (
           <button
             key={tab.id}
@@ -429,7 +429,7 @@ function TransportGrid({
   selectedTransport: string | null;
   setSelectedTransport: (id: string | null) => void;
 }) {
-  const categories = ["Local", "Remote", "In-Process", "IDE"];
+  const categories = ["本地", "远程", "进程内", "IDE"];
 
   return (
     <div>
@@ -577,7 +577,7 @@ function TransportGrid({
                           letterSpacing: "0.05em",
                         }}
                       >
-                        How It Works
+                        工作原理
                       </div>
                       <div style={{ fontSize: 12, color: colors.textSecondary, lineHeight: 1.6 }}>
                         {t.howItWorks}
@@ -595,7 +595,7 @@ function TransportGrid({
                           letterSpacing: "0.05em",
                         }}
                       >
-                        When To Use
+                        适用场景
                       </div>
                       <div style={{ fontSize: 12, color: colors.textSecondary, lineHeight: 1.6 }}>
                         {t.whenToUse}
@@ -615,7 +615,7 @@ function TransportGrid({
                       letterSpacing: "0.05em",
                     }}
                   >
-                    Connection Flow
+                    连接流程
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
                     {t.connectionFlow.map((step, i) => (
@@ -702,7 +702,7 @@ function DecisionTree({
                   fontWeight: i === path.length - 1 ? 600 : 400,
                 }}
               >
-                {node?.result ? "Result" : node?.question?.split("?")[0] || "Start"}
+                {node?.result ? "结果" : node?.question?.split("?")[0] || "开始"}
               </span>
             </div>
           );
@@ -736,7 +736,7 @@ function DecisionTree({
                 marginBottom: 8,
               }}
             >
-              Recommendation
+              推荐方案
             </div>
             <div style={{ fontSize: 15, color: colors.text, lineHeight: 1.6, marginBottom: 16 }}>
               {currentNode.result}
@@ -831,7 +831,7 @@ function DecisionTree({
               cursor: "pointer",
             }}
           >
-            Back
+            返回
           </button>
         )}
         {path.length > 1 && (
@@ -849,7 +849,7 @@ function DecisionTree({
               cursor: "pointer",
             }}
           >
-            Start Over
+            重新开始
           </button>
         )}
       </div>
@@ -873,11 +873,11 @@ function OAuthFlow({
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 6 }}>
-        RFC 9728 + RFC 8414 OAuth Discovery Chain
+        RFC 9728 + RFC 8414 OAuth 发现链
       </div>
       <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 20, lineHeight: 1.5 }}>
-        When an MCP server returns 401, Claude Code walks through a multi-step discovery chain to find the authorization server.
-        Click each step to see details.
+        当 MCP 服务器返回 401 时，Claude Code 会执行多步发现链以查找授权服务器。
+        点击每个步骤查看详情。
       </div>
 
       <div style={{ position: "relative", paddingLeft: 28 }}>
@@ -1006,14 +1006,14 @@ function OAuthFlow({
         }}
       >
         <div style={{ fontSize: 12, fontWeight: 600, color: colors.text, marginBottom: 8 }}>
-          Fallback Chain
+          回退链
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "wrap" }}>
           {[
-            { label: "RFC 9728", desc: "Protected Resource" },
-            { label: "RFC 8414", desc: "Auth Server Metadata" },
-            { label: "Path-aware probing", desc: "Against MCP server URL" },
-            { label: "authServerMetadataUrl", desc: "Escape hatch config" },
+            { label: "RFC 9728", desc: "受保护资源" },
+            { label: "RFC 8414", desc: "授权服务器元数据" },
+            { label: "路径感知探测", desc: "针对 MCP 服务器 URL" },
+            { label: "authServerMetadataUrl", desc: "兜底配置" },
           ].map((step, i) => (
             <div key={step.label} style={{ display: "flex", alignItems: "center" }}>
               <div
@@ -1041,7 +1041,7 @@ function OAuthFlow({
           ))}
         </div>
         <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 10, lineHeight: 1.5 }}>
-          The <code style={{ fontFamily: "var(--font-mono)", fontSize: 10 }}>authServerMetadataUrl</code> escape hatch exists because some OAuth servers implement neither RFC.
+          <code style={{ fontFamily: "var(--font-mono)", fontSize: 10 }}>authServerMetadataUrl</code> 兜底配置的存在是因为某些 OAuth 服务器既未实现 RFC 9728 也未实现 RFC 8414。
         </div>
       </div>
     </div>

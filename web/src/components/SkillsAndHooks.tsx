@@ -34,38 +34,38 @@ interface HookType {
 // --- Data ---
 
 const skillSources: SkillSource[] = [
-  { id: 1, name: "Managed (Policy)", priority: 1, location: "<MANAGED_PATH>/.claude/skills/", trust: "Enterprise" },
-  { id: 2, name: "User", priority: 2, location: "~/.claude/skills/", trust: "User" },
-  { id: 3, name: "Project", priority: 3, location: ".claude/skills/", trust: "Project" },
-  { id: 4, name: "Additional Dirs", priority: 4, location: "<add-dir>/.claude/skills/", trust: "Varies" },
-  { id: 5, name: "Legacy Commands", priority: 5, location: ".claude/commands/", trust: "Project" },
-  { id: 6, name: "Bundled", priority: 6, location: "Compiled into binary", trust: "Built-in" },
-  { id: 7, name: "MCP", priority: 7, location: "MCP server prompts", trust: "Remote" },
+  { id: 1, name: "托管（策略）", priority: 1, location: "<MANAGED_PATH>/.claude/skills/", trust: "企业" },
+  { id: 2, name: "用户", priority: 2, location: "~/.claude/skills/", trust: "用户" },
+  { id: 3, name: "项目", priority: 3, location: ".claude/skills/", trust: "项目" },
+  { id: 4, name: "附加目录", priority: 4, location: "<add-dir>/.claude/skills/", trust: "可变" },
+  { id: 5, name: "旧版命令", priority: 5, location: ".claude/commands/", trust: "项目" },
+  { id: 6, name: "内置", priority: 6, location: "编译进二进制文件", trust: "内置" },
+  { id: 7, name: "MCP", priority: 7, location: "MCP 服务器提示词", trust: "远程" },
 ];
 
 const sampleSkills: SkillCard[] = [
-  { id: "deploy", name: "/deploy", description: "Run deployment pipeline", source: "Project", tokens: 1847, loaded: false },
-  { id: "review", name: "/review", description: "Code review checklist", source: "Project", tokens: 2103, loaded: false },
-  { id: "test", name: "/test", description: "Run test suite with coverage", source: "User", tokens: 956, loaded: false },
-  { id: "db-migrate", name: "/db-migrate", description: "Database migration helper", source: "Project", tokens: 1432, loaded: false },
-  { id: "format", name: "/format", description: "Format and lint code", source: "Bundled", tokens: 734, loaded: false },
-  { id: "git-pr", name: "/git-pr", description: "Create pull request", source: "Bundled", tokens: 1289, loaded: false },
-  { id: "security", name: "/security", description: "Security audit checklist", source: "Managed", tokens: 2456, loaded: false },
-  { id: "docs", name: "/docs", description: "Generate documentation", source: "User", tokens: 1678, loaded: false },
-  { id: "refactor", name: "/refactor", description: "Refactoring patterns", source: "MCP", tokens: 1923, loaded: false },
-  { id: "debug", name: "/debug", description: "Debugging workflow", source: "Bundled", tokens: 867, loaded: false },
-  { id: "perf", name: "/perf", description: "Performance profiling", source: "Project", tokens: 1544, loaded: false },
-  { id: "api", name: "/api", description: "API design patterns", source: "User", tokens: 2011, loaded: false },
-  { id: "ci", name: "/ci", description: "CI/CD configuration", source: "Project", tokens: 1156, loaded: false },
-  { id: "lint", name: "/lint", description: "Custom lint rules", source: "Legacy", tokens: 623, loaded: false },
-  { id: "scaffold", name: "/scaffold", description: "Project scaffolding", source: "MCP", tokens: 1789, loaded: false },
+  { id: "deploy", name: "/deploy", description: "运行部署流水线", source: "项目", tokens: 1847, loaded: false },
+  { id: "review", name: "/review", description: "代码审查清单", source: "项目", tokens: 2103, loaded: false },
+  { id: "test", name: "/test", description: "运行带覆盖率的测试套件", source: "用户", tokens: 956, loaded: false },
+  { id: "db-migrate", name: "/db-migrate", description: "数据库迁移助手", source: "项目", tokens: 1432, loaded: false },
+  { id: "format", name: "/format", description: "格式化与 Lint 代码", source: "内置", tokens: 734, loaded: false },
+  { id: "git-pr", name: "/git-pr", description: "创建 Pull Request", source: "内置", tokens: 1289, loaded: false },
+  { id: "security", name: "/security", description: "安全审计清单", source: "托管", tokens: 2456, loaded: false },
+  { id: "docs", name: "/docs", description: "生成文档", source: "用户", tokens: 1678, loaded: false },
+  { id: "refactor", name: "/refactor", description: "重构模式", source: "MCP", tokens: 1923, loaded: false },
+  { id: "debug", name: "/debug", description: "调试工作流", source: "内置", tokens: 867, loaded: false },
+  { id: "perf", name: "/perf", description: "性能分析", source: "项目", tokens: 1544, loaded: false },
+  { id: "api", name: "/api", description: "API 设计模式", source: "用户", tokens: 2011, loaded: false },
+  { id: "ci", name: "/ci", description: "CI/CD 配置", source: "项目", tokens: 1156, loaded: false },
+  { id: "lint", name: "/lint", description: "自定义 Lint 规则", source: "旧版", tokens: 623, loaded: false },
+  { id: "scaffold", name: "/scaffold", description: "项目脚手架", source: "MCP", tokens: 1789, loaded: false },
 ];
 
 const hookTypes: HookType[] = [
-  { id: "pre", name: "PreToolUse", description: "Fires before every tool execution. Can block, modify input, auto-approve, or inject context.", exitCodes: "deny > ask > allow precedence" },
-  { id: "post", name: "PostToolUse", description: "Fires after successful execution. Can inject context or replace MCP tool output.", exitCodes: "Context injection only" },
-  { id: "stop", name: "Stop", description: "Fires before Claude concludes. Exit 2 forces continuation -- the most powerful integration point.", exitCodes: "Exit 2 = force continue" },
-  { id: "notification", name: "Notification", description: "Fires on notifications, elicitations, and session events. Cannot block.", exitCodes: "Non-blocking only" },
+  { id: "pre", name: "PreToolUse", description: "在每个工具执行前触发。可拦截、修改输入、自动批准或注入上下文。", exitCodes: "优先级：deny > ask > allow" },
+  { id: "post", name: "PostToolUse", description: "在成功执行后触发。可注入上下文或替换 MCP 工具输出。", exitCodes: "仅限上下文注入" },
+  { id: "stop", name: "Stop", description: "在 Claude 结束前触发。Exit 2 强制继续——最强大的集成点。", exitCodes: "Exit 2 = 强制继续" },
+  { id: "notification", name: "Notification", description: "在通知、询问和会话事件时触发。不可拦截。", exitCodes: "仅限非阻塞" },
 ];
 
 // --- Helpers ---
@@ -182,7 +182,7 @@ export default function SkillsAndHooks({ className }: Props) {
               textTransform: "capitalize",
             }}
           >
-            {tab}
+            {tab === "skills" ? "技能" : "钩子"}
           </button>
         ))}
       </div>
@@ -299,9 +299,9 @@ function SkillsTab({ colors, isDark }: TabProps) {
         }}
       >
         {[
-          { label: "Startup", desc: "Load frontmatter only", active: phase === "startup" },
-          { label: "User types /command", desc: "Skill invoked", active: phase === "invoked" },
-          { label: "Execution", desc: "Full content injected", active: phase === "invoked" && loadedSkillId !== null },
+          { label: "启动", desc: "仅加载 frontmatter", active: phase === "startup" },
+          { label: "用户输入 /command", desc: "技能被调用", active: phase === "invoked" },
+          { label: "执行", desc: "注入完整内容", active: phase === "invoked" && loadedSkillId !== null },
         ].map((step, i) => (
           <div key={step.label} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
             <div style={{ textAlign: "center", flex: 1 }}>
@@ -352,7 +352,7 @@ function SkillsTab({ colors, isDark }: TabProps) {
             transition: "background 0.2s",
           }}
         >
-          {phase === "startup" ? "Loading..." : "Simulate Startup"}
+          {phase === "startup" ? "加载中..." : "模拟启动"}
         </button>
         <button
           onClick={() => setShowSources(!showSources)}
@@ -369,7 +369,7 @@ function SkillsTab({ colors, isDark }: TabProps) {
             transition: "all 0.2s",
           }}
         >
-          {showSources ? "Hide" : "Show"} 7 Sources
+          {showSources ? "隐藏" : "显示"} 7 个来源
         </button>
       </div>
 
@@ -392,7 +392,7 @@ function SkillsTab({ colors, isDark }: TabProps) {
               }}
             >
               <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 12 }}>
-                7 Skill Sources (by priority)
+                7 个技能来源（按优先级排序）
               </div>
               <div style={{ display: "grid", gap: 6 }}>
                 {skillSources.map((src) => (
@@ -468,7 +468,7 @@ function SkillsTab({ colors, isDark }: TabProps) {
           }}
         >
           <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: colors.textSecondary }}>
-            Content loaded:
+            已加载内容：
           </span>
           <span
             style={{
@@ -485,7 +485,7 @@ function SkillsTab({ colors, isDark }: TabProps) {
           </span>
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: colors.textSecondary }}>
-            Only this skill loaded. Other 14 remain as frontmatter only (~0 tokens each).
+            仅加载此技能。其余 14 个仍保持为 frontmatter（每个约 0 tokens）。
           </span>
         </motion.div>
       )}
@@ -584,9 +584,9 @@ function SkillsTab({ colors, isDark }: TabProps) {
           lineHeight: 1.6,
         }}
       >
-        <strong style={{ color: colors.text }}>Two-phase loading:</strong> At startup, only YAML frontmatter is extracted (name, description, whenToUse) -- near-zero token cost.
-        When invoked, <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>getPromptForCommand</code> loads the full markdown body, substitutes variables, and executes inline shell commands.
-        Click any skill card to simulate invocation.
+        <strong style={{ color: colors.text }}>两阶段加载：</strong> 启动时仅提取 YAML frontmatter（name、description、whenToUse）——几乎零 token 消耗。
+        调用时，<code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>getPromptForCommand</code> 会加载完整的 markdown 正文，替换变量并执行内联 shell 命令。
+        点击任意技能卡片以模拟调用。
       </div>
     </div>
   );
@@ -619,10 +619,10 @@ function HooksTab({ colors, isDark }: TabProps) {
   }, []);
 
   const flowSteps: { id: HookFlowStep; label: string; detail: string }[] = [
-    { id: "pre", label: "PreToolUse", detail: "3 hooks matched, checking..." },
-    { id: "execute", label: "Tool Execution", detail: "Running Bash: git commit -m 'fix'" },
-    { id: "post", label: "PostToolUse", detail: "2 hooks ran, context injected" },
-    { id: "done", label: "Complete", detail: "Result returned to model" },
+    { id: "pre", label: "PreToolUse", detail: "匹配到 3 个钩子，检查中..." },
+    { id: "execute", label: "工具执行", detail: "运行 Bash: git commit -m 'fix'" },
+    { id: "post", label: "PostToolUse", detail: "运行了 2 个钩子，已注入上下文" },
+    { id: "done", label: "完成", detail: "结果已返回给模型" },
   ];
 
   const getFlowIndex = (step: HookFlowStep) => flowSteps.findIndex((s) => s.id === step);
@@ -643,15 +643,15 @@ function HooksTab({ colors, isDark }: TabProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <LockIcon size={16} color={colors.accent} />
           <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>
-            Snapshot Security Model
+            快照安全模型
           </span>
         </div>
         <div style={{ fontSize: 12, color: colors.textSecondary, lineHeight: 1.6 }}>
-          Hook configuration is <strong style={{ color: colors.accent }}>frozen at startup</strong> via{" "}
-          <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>captureHooksConfigSnapshot()</code>.
-          Runtime filesystem changes to <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>.claude/settings.json</code> are ignored.
-          Only explicit channels (<code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>/hooks</code> command or file watcher)
-          can update the snapshot.
+          钩子配置在<strong style={{ color: colors.accent }}>启动时冻结</strong>，通过{" "}
+          <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>captureHooksConfigSnapshot()</code> 实现。
+          运行时对 <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>.claude/settings.json</code> 的文件系统更改将被忽略。
+          只有显式通道（<code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>/hooks</code> 命令或文件监听器）
+          才能更新快照。
         </div>
         <div
           style={{
@@ -668,17 +668,17 @@ function HooksTab({ colors, isDark }: TabProps) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <LockIcon size={12} color={colors.green} />
-            <span style={{ color: colors.green }}>Startup: config frozen</span>
+            <span style={{ color: colors.green }}>启动：配置已冻结</span>
           </div>
           <div style={{ color: colors.cardBorder }}>|</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <BlockIcon />
-            <span style={{ color: colors.red }}>Attacker modifies .claude/settings.json</span>
+            <span style={{ color: colors.red }}>攻击者修改 .claude/settings.json</span>
           </div>
           <div style={{ color: colors.cardBorder }}>|</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <LockIcon size={12} color={colors.accent} />
-            <span style={{ color: colors.accent }}>executeHooks() reads frozen snapshot</span>
+            <span style={{ color: colors.accent }}>executeHooks() 读取冻结的快照</span>
           </div>
         </div>
       </div>
@@ -694,7 +694,7 @@ function HooksTab({ colors, isDark }: TabProps) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>Hook Execution Flow</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>钩子执行流程</span>
           <button
             onClick={flowStep === "idle" ? runFlow : resetFlow}
             style={{
@@ -709,7 +709,7 @@ function HooksTab({ colors, isDark }: TabProps) {
               cursor: "pointer",
             }}
           >
-            {flowStep === "idle" ? "Run Tool Call" : "Reset"}
+            {flowStep === "idle" ? "运行工具调用" : "重置"}
           </button>
         </div>
 
@@ -796,7 +796,7 @@ function HooksTab({ colors, isDark }: TabProps) {
 
       {/* Hook types grid */}
       <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 12 }}>
-        4 Hook Types
+        4 种钩子类型
       </div>
       <div
         style={{
@@ -858,13 +858,13 @@ function HooksTab({ colors, isDark }: TabProps) {
         }}
       >
         <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 12 }}>
-          Exit Code Semantics
+          退出码语义
         </div>
         <div style={{ display: "grid", gap: 8 }}>
           {[
-            { code: "0", meaning: "Success -- stdout parsed if JSON", color: colors.green, bg: colors.greenBg, icon: <CheckIcon color={colors.green} /> },
-            { code: "2", meaning: "Blocking error -- stderr shown as system message", color: colors.red, bg: colors.redBg, icon: <BlockIcon /> },
-            { code: "Other", meaning: "Non-blocking warning -- shown to user only", color: colors.yellow, bg: colors.yellowBg, icon: <WarningIcon /> },
+            { code: "0", meaning: "成功——若 stdout 为 JSON 则解析", color: colors.green, bg: colors.greenBg, icon: <CheckIcon color={colors.green} /> },
+            { code: "2", meaning: "阻塞错误——stderr 作为系统消息显示", color: colors.red, bg: colors.redBg, icon: <BlockIcon /> },
+            { code: "其他", meaning: "非阻塞警告——仅向用户显示", color: colors.yellow, bg: colors.yellowBg, icon: <WarningIcon /> },
           ].map((ec) => (
             <div
               key={ec.code}
@@ -894,8 +894,8 @@ function HooksTab({ colors, isDark }: TabProps) {
           ))}
         </div>
         <div style={{ fontSize: 11, color: colors.textSecondary, marginTop: 10, lineHeight: 1.5 }}>
-          Exit code 2 was chosen deliberately. Exit code 1 is too common -- any unhandled exception or syntax error produces exit 1.
-          Using exit 2 prevents accidental enforcement.
+          选择退出码 2 是有意为之。退出码 1 过于常见——任何未处理的异常或语法错误都会产生退出码 1。
+          使用退出码 2 可防止意外触发强制执行。
         </div>
       </div>
     </div>

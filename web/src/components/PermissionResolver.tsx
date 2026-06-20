@@ -31,48 +31,48 @@ interface Preset {
 // --- Data ---
 
 const toolTypes: { value: ToolType; label: string }[] = [
-  { value: "read", label: "Read file" },
-  { value: "write", label: "Write file" },
-  { value: "bash", label: "Bash command" },
-  { value: "mcp", label: "MCP tool" },
+  { value: "read", label: "读取文件" },
+  { value: "write", label: "写入文件" },
+  { value: "bash", label: "Bash 命令" },
+  { value: "mcp", label: "MCP 工具" },
 ];
 
 const permissionModes: { value: PermissionMode; label: string; description: string }[] = [
-  { value: "bypassPermissions", label: "bypassPermissions", description: "Everything allowed. No checks. Internal/testing only" },
-  { value: "dontAsk", label: "dontAsk", description: "All allowed, still logged. No user prompts" },
-  { value: "auto", label: "auto", description: "LLM transcript classifier decides allow/deny" },
-  { value: "acceptEdits", label: "acceptEdits", description: "File edits auto-approved; other mutations prompt" },
-  { value: "default", label: "default", description: "Standard interactive mode. User approves each action" },
-  { value: "plan", label: "plan", description: "Read-only. All mutations blocked" },
-  { value: "bubble", label: "bubble", description: "Escalate decision to parent agent (sub-agent mode)" },
+  { value: "bypassPermissions", label: "bypassPermissions", description: "允许所有操作。无检查。仅限内部/测试使用" },
+  { value: "dontAsk", label: "dontAsk", description: "允许所有操作并记录日志。不提示用户" },
+  { value: "auto", label: "auto", description: "由 LLM 转录分类器决定允许或拒绝" },
+  { value: "acceptEdits", label: "acceptEdits", description: "文件编辑自动批准；其他变更需提示确认" },
+  { value: "default", label: "default", description: "标准交互模式。用户需批准每个操作" },
+  { value: "plan", label: "plan", description: "只读模式。阻止所有变更操作" },
+  { value: "bubble", label: "bubble", description: "将决策上报给父级 Agent（子 Agent 模式）" },
 ];
 
 const presets: Preset[] = [
-  { label: "Read file in auto mode", tool: "read", mode: "auto", hasHook: false },
-  { label: "Bash rm in plan mode", tool: "bash", mode: "plan", hasHook: false },
-  { label: "Write with hook override", tool: "write", mode: "default", hasHook: true, hookDecision: "ALLOWED" },
-  { label: "MCP tool in default mode", tool: "mcp", mode: "default", hasHook: false },
-  { label: "Bash in full-auto (dontAsk)", tool: "bash", mode: "dontAsk", hasHook: false },
-  { label: "Write blocked by hook", tool: "write", mode: "acceptEdits", hasHook: true, hookDecision: "DENIED" },
+  { label: "Auto 模式下读取文件", tool: "read", mode: "auto", hasHook: false },
+  { label: "Plan 模式下执行 Bash rm", tool: "bash", mode: "plan", hasHook: false },
+  { label: "Hook 覆盖下的写入操作", tool: "write", mode: "default", hasHook: true, hookDecision: "ALLOWED" },
+  { label: "Default 模式下的 MCP 工具", tool: "mcp", mode: "default", hasHook: false },
+  { label: "全自动 (dontAsk) 下的 Bash", tool: "bash", mode: "dontAsk", hasHook: false },
+  { label: "被 Hook 阻止的写入操作", tool: "write", mode: "acceptEdits", hasHook: true, hookDecision: "DENIED" },
 ];
 
 const allNodes: Record<string, FlowNode> = {
-  start: { id: "start", label: "Tool call needs permission", detail: "A tool_use block was parsed from the model response", type: "decision" },
-  hookCheck: { id: "hookCheck", label: "Hook rule match?", detail: "Check if any PreToolUse hook matches this tool invocation", type: "decision" },
-  hookDecision: { id: "hookDecision", label: "Use hook decision", detail: "Hook returned allow, deny, or ask -- this overrides all other checks", type: "decision" },
-  checkPerms: { id: "checkPerms", label: "tool.checkPermissions()", detail: "Each tool defines its own permission logic (read-only tools often return 'allow')", type: "decision" },
-  toolAllow: { id: "toolAllow", label: "Tool self-allows", detail: "checkPermissions() returned 'allow' -- tool is inherently safe", type: "decision" },
-  modeCheck: { id: "modeCheck", label: "Permission mode?", detail: "Check the active permission mode (7 modes, most to least permissive)", type: "decision" },
-  bypassAllow: { id: "bypassAllow", label: "bypassPermissions / dontAsk", detail: "No restrictions. Everything passes through", type: "decision" },
-  planDeny: { id: "planDeny", label: "plan mode: read-only", detail: "All mutations are blocked. Only read operations pass", type: "decision" },
-  planReadCheck: { id: "planReadCheck", label: "Is it a read operation?", detail: "Plan mode allows reads but blocks writes and executions", type: "decision" },
-  acceptEditsCheck: { id: "acceptEditsCheck", label: "acceptEdits: file write?", detail: "File edits are auto-approved, everything else prompts the user", type: "decision" },
-  autoClassifier: { id: "autoClassifier", label: "LLM classifier evaluates", detail: "A lightweight LLM call classifies the tool invocation against the conversation transcript", type: "decision" },
-  promptUser: { id: "promptUser", label: "Prompt user", detail: "User sees: allow once / allow for session / allow always / deny", type: "decision" },
-  bubbleUp: { id: "bubbleUp", label: "Escalate to parent", detail: "Sub-agent cannot approve its own dangerous actions. Permission bubbles up", type: "decision" },
-  resultAllow: { id: "resultAllow", label: "ALLOWED", detail: "Tool execution proceeds", type: "result" },
-  resultDeny: { id: "resultDeny", label: "DENIED", detail: "Tool execution blocked, error returned to model", type: "result" },
-  resultAsk: { id: "resultAsk", label: "ASK USER", detail: "Interactive permission prompt shown to user", type: "result" },
+  start: { id: "start", label: "工具调用需要权限", detail: "已从模型响应中解析出 tool_use 块", type: "decision" },
+  hookCheck: { id: "hookCheck", label: "匹配 Hook 规则？", detail: "检查是否有 PreToolUse Hook 匹配此次工具调用", type: "decision" },
+  hookDecision: { id: "hookDecision", label: "使用 Hook 决策", detail: "Hook 返回了 allow、deny 或 ask —— 这将覆盖所有其他检查", type: "decision" },
+  checkPerms: { id: "checkPerms", label: "tool.checkPermissions()", detail: "每个工具定义自己的权限逻辑（只读工具通常返回 'allow'）", type: "decision" },
+  toolAllow: { id: "toolAllow", label: "工具自允许", detail: "checkPermissions() 返回 'allow' —— 工具本身是安全的", type: "decision" },
+  modeCheck: { id: "modeCheck", label: "权限模式？", detail: "检查当前激活的权限模式（7 种模式，从最宽松到最严格）", type: "decision" },
+  bypassAllow: { id: "bypassAllow", label: "bypassPermissions / dontAsk", detail: "无限制。所有操作直接通过", type: "decision" },
+  planDeny: { id: "planDeny", label: "plan 模式：只读", detail: "所有变更操作被阻止。仅允许读取操作", type: "decision" },
+  planReadCheck: { id: "planReadCheck", label: "是否为读取操作？", detail: "Plan 模式允许读取，但阻止写入和执行", type: "decision" },
+  acceptEditsCheck: { id: "acceptEditsCheck", label: "acceptEdits：文件写入？", detail: "文件编辑自动批准，其他操作需提示用户", type: "decision" },
+  autoClassifier: { id: "autoClassifier", label: "LLM 分类器评估", detail: "轻量级 LLM 调用根据对话转录对工具调用进行分类", type: "decision" },
+  promptUser: { id: "promptUser", label: "提示用户", detail: "用户看到：允许一次 / 本次会话允许 / 始终允许 / 拒绝", type: "decision" },
+  bubbleUp: { id: "bubbleUp", label: "上报给父级", detail: "子 Agent 无法批准自身的危险操作。权限需向上冒泡", type: "decision" },
+  resultAllow: { id: "resultAllow", label: "已允许", detail: "工具执行继续", type: "result" },
+  resultDeny: { id: "resultDeny", label: "已拒绝", detail: "工具执行被阻止，向模型返回错误", type: "result" },
+  resultAsk: { id: "resultAsk", label: "询问用户", detail: "向用户显示交互式权限提示", type: "result" },
 };
 
 function resolvePermission(
@@ -87,14 +87,14 @@ function resolvePermission(
     nodes.push("hookDecision");
     if (hookDecision === "ALLOWED") {
       nodes.push("resultAllow");
-      return { nodes, result: "ALLOWED", explanation: "PreToolUse hook matched and returned allow -- skips all other checks" };
+      return { nodes, result: "ALLOWED", explanation: "PreToolUse Hook 匹配并返回 allow —— 跳过所有其他检查" };
     }
     if (hookDecision === "DENIED") {
       nodes.push("resultDeny");
-      return { nodes, result: "DENIED", explanation: "PreToolUse hook matched and returned deny -- tool blocked before permission prompt" };
+      return { nodes, result: "DENIED", explanation: "PreToolUse Hook 匹配并返回 deny —— 工具在权限提示前被阻止" };
     }
     nodes.push("resultAsk");
-    return { nodes, result: "ASK_USER", explanation: "PreToolUse hook matched and returned ask -- user must decide" };
+    return { nodes, result: "ASK_USER", explanation: "PreToolUse Hook 匹配并返回 ask —— 必须由用户决定" };
   }
 
   nodes.push("checkPerms");
@@ -102,7 +102,7 @@ function resolvePermission(
   // Read-only tools self-allow
   if (tool === "read") {
     nodes.push("toolAllow", "resultAllow");
-    return { nodes, result: "ALLOWED", explanation: "Read tool's checkPermissions() returns 'allow' -- read-only tools are inherently safe" };
+    return { nodes, result: "ALLOWED", explanation: "读取工具的 checkPermissions() 返回 'allow' —— 只读工具本身是安全的" };
   }
 
   nodes.push("modeCheck");
@@ -111,43 +111,43 @@ function resolvePermission(
     case "bypassPermissions":
     case "dontAsk":
       nodes.push("bypassAllow", "resultAllow");
-      return { nodes, result: "ALLOWED", explanation: `${mode} mode: all tool calls are allowed without prompting` };
+      return { nodes, result: "ALLOWED", explanation: `${mode} 模式：所有工具调用无需提示即可允许` };
 
     case "plan":
       nodes.push("planDeny");
       if (tool === "read") {
         nodes.push("planReadCheck", "resultAllow");
-        return { nodes, result: "ALLOWED", explanation: "Plan mode allows read operations" };
+        return { nodes, result: "ALLOWED", explanation: "Plan 模式允许读取操作" };
       }
       nodes.push("resultDeny");
-      return { nodes, result: "DENIED", explanation: "Plan mode: all mutations are blocked. Only read operations are allowed" };
+      return { nodes, result: "DENIED", explanation: "Plan 模式：所有变更操作被阻止。仅允许读取操作" };
 
     case "acceptEdits":
       nodes.push("acceptEditsCheck");
       if (tool === "write") {
         nodes.push("resultAllow");
-        return { nodes, result: "ALLOWED", explanation: "acceptEdits mode: file write operations are auto-approved" };
+        return { nodes, result: "ALLOWED", explanation: "acceptEdits 模式：文件写入操作自动批准" };
       }
       nodes.push("resultAsk");
-      return { nodes, result: "ASK_USER", explanation: "acceptEdits mode: non-write operations require user approval" };
+      return { nodes, result: "ASK_USER", explanation: "acceptEdits 模式：非写入操作需要用户批准" };
 
     case "auto":
       nodes.push("autoClassifier");
       // For the interactive demo, auto mode allows writes and denies dangerous bash
       if (tool === "bash") {
         nodes.push("resultAsk");
-        return { nodes, result: "ASK_USER", explanation: "Auto mode: LLM classifier flagged this bash command as potentially unsafe" };
+        return { nodes, result: "ASK_USER", explanation: "Auto 模式：LLM 分类器标记此 Bash 命令为潜在不安全" };
       }
       nodes.push("resultAllow");
-      return { nodes, result: "ALLOWED", explanation: "Auto mode: LLM classifier determined this action is consistent with user intent" };
+      return { nodes, result: "ALLOWED", explanation: "Auto 模式：LLM 分类器判定此操作符合用户意图" };
 
     case "default":
       nodes.push("promptUser", "resultAsk");
-      return { nodes, result: "ASK_USER", explanation: "Default mode: user must approve each mutation interactively" };
+      return { nodes, result: "ASK_USER", explanation: "Default 模式：用户必须以交互方式批准每个变更操作" };
 
     case "bubble":
       nodes.push("bubbleUp", "resultAsk");
-      return { nodes, result: "ASK_USER", explanation: "Bubble mode: sub-agent escalates permission to parent agent or user" };
+      return { nodes, result: "ASK_USER", explanation: "Bubble 模式：子 Agent 将权限上报给父级 Agent 或用户" };
   }
 }
 
@@ -179,19 +179,19 @@ function ResultBadge({ result, isDark }: { result: Resolution; isDark: boolean }
       bg: isDark ? "rgba(34, 197, 94, 0.15)" : "rgba(34, 197, 94, 0.12)",
       border: "rgba(34, 197, 94, 0.4)",
       color: "#22c55e",
-      label: "ALLOWED",
+      label: "已允许",
     },
     DENIED: {
       bg: isDark ? "rgba(239, 68, 68, 0.15)" : "rgba(239, 68, 68, 0.1)",
       border: "rgba(239, 68, 68, 0.4)",
       color: "#ef4444",
-      label: "DENIED",
+      label: "已拒绝",
     },
     ASK_USER: {
       bg: isDark ? "rgba(234, 179, 8, 0.15)" : "rgba(234, 179, 8, 0.1)",
       border: "rgba(234, 179, 8, 0.4)",
       color: "#eab308",
-      label: "ASK USER",
+      label: "询问用户",
     },
   }[result];
 
@@ -334,7 +334,7 @@ export default function PermissionResolver({ className }: Props) {
                 letterSpacing: "0.05em",
               }}
             >
-              Tool type
+              工具类型
             </label>
             <select value={tool} onChange={(e) => { setTool(e.target.value as ToolType); reset(); }} style={selectStyle}>
               {toolTypes.map((t) => (
@@ -357,7 +357,7 @@ export default function PermissionResolver({ className }: Props) {
                 letterSpacing: "0.05em",
               }}
             >
-              Permission mode
+              权限模式
             </label>
             <select value={mode} onChange={(e) => { setMode(e.target.value as PermissionMode); reset(); }} style={selectStyle}>
               {permissionModes.map((m) => (
@@ -380,7 +380,7 @@ export default function PermissionResolver({ className }: Props) {
                 letterSpacing: "0.05em",
               }}
             >
-              Hook rule
+              Hook 规则
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <label
@@ -399,7 +399,7 @@ export default function PermissionResolver({ className }: Props) {
                   onChange={(e) => { setHasHook(e.target.checked); reset(); }}
                   style={{ accentColor: colors.accent }}
                 />
-                Has matching hook
+                存在匹配的 Hook
               </label>
               {hasHook && (
                 <select
@@ -448,7 +448,7 @@ export default function PermissionResolver({ className }: Props) {
               transition: "background 0.2s",
             }}
           >
-            Resolve
+            解析
           </button>
 
           {resolved && (
@@ -465,7 +465,7 @@ export default function PermissionResolver({ className }: Props) {
                 cursor: "pointer",
               }}
             >
-              Clear
+              清除
             </button>
           )}
         </div>
@@ -490,7 +490,7 @@ export default function PermissionResolver({ className }: Props) {
             letterSpacing: "0.05em",
           }}
         >
-          Presets:
+          预设：
         </span>
         {presets.map((preset) => (
           <button
@@ -717,7 +717,7 @@ export default function PermissionResolver({ className }: Props) {
                       marginRight: 8,
                     }}
                   >
-                    Resolution:
+                    解析结果：
                   </span>
                   {resolved.explanation}
                 </div>
@@ -749,7 +749,7 @@ export default function PermissionResolver({ className }: Props) {
               letterSpacing: "0.05em",
             }}
           >
-            Permission modes (most to least permissive)
+            权限模式（从最宽松到最严格）
           </div>
           {permissionModes.map((m, i) => (
             <div

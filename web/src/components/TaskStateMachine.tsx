@@ -26,34 +26,34 @@ const transitions: Transition[] = [
   {
     from: "pending",
     to: "running",
-    label: "execution starts",
-    trigger: "Task registered and first execution begins",
+    label: "开始执行",
+    trigger: "任务已注册并开始首次执行",
     detail:
-      "The brief state between registration and first execution. Task moves to running when the agent loop or shell process starts.",
+      "注册与首次执行之间的短暂状态。当 Agent 循环或 Shell 进程启动时，任务进入运行状态。",
   },
   {
     from: "running",
     to: "completed",
-    label: "normal finish",
-    trigger: "Agent finishes work successfully or shell exits 0",
+    label: "正常完成",
+    trigger: "Agent 成功完成工作或 Shell 以退出码 0 退出",
     detail:
-      "The task produced its result. Output written to disk file. notified flag flips to true when parent is told.",
+      "任务已生成结果。输出已写入磁盘文件。当通知父级后，notified 标志将变为 true。",
   },
   {
     from: "running",
     to: "failed",
-    label: "error",
-    trigger: "Unhandled exception, API error, or tool failure",
+    label: "错误",
+    trigger: "未处理的异常、API 错误或工具执行失败",
     detail:
-      "An error terminated execution. The error is captured in the task output file and reported via task-notification XML.",
+      "错误导致执行终止。该错误已被捕获并记录在任务输出文件中，并通过 task-notification XML 进行上报。",
   },
   {
     from: "running",
     to: "killed",
-    label: "abort / user stop",
-    trigger: "User presses ESC, coordinator calls TaskStop, or abort signal",
+    label: "中止 / 用户停止",
+    trigger: "用户按下 ESC、协调器调用 TaskStop 或收到中止信号",
     detail:
-      "Explicitly stopped. The abort controller fires, cleanup runs in the finally block. No result is produced.",
+      "被显式停止。中止控制器触发，清理逻辑在 finally 代码块中执行。不会产生任何结果。",
   },
 ];
 
@@ -78,39 +78,39 @@ const communicationPatterns: Record<
   { title: string; description: string; details: string[] }
 > = {
   foreground: {
-    title: "Foreground (Sync)",
+    title: "前台模式 (同步)",
     description:
-      "Parent iterates runAgent() generator directly. Messages yield up the call stack.",
+      "父级直接迭代 runAgent() 生成器。消息沿调用栈向上 yield。",
     details: [
-      "Parent calls runAgent() and iterates the async generator",
-      "Each message yields back to the parent immediately",
-      "Shares parent's abort controller (ESC kills both)",
-      "Can transition to background mid-execution via Promise.race",
-      "No disk output needed -- messages flow through the generator chain",
+      "父级调用 runAgent() 并迭代异步生成器",
+      "每条消息都会立即 yield 回父级",
+      "共享父级的中止控制器（按 ESC 会同时终止两者）",
+      "可通过 Promise.race 在执行过程中切换至后台模式",
+      "无需磁盘输出 —— 消息通过生成器链流转",
     ],
   },
   background: {
-    title: "Background (Async)",
+    title: "后台模式 (异步)",
     description:
-      "Three channels: disk output files, task-notifications, and pending message queue.",
+      "三种通道：磁盘输出文件、任务通知和待处理消息队列。",
     details: [
-      "Disk: every task writes to an outputFile (JSONL transcript)",
-      "Notifications: XML <task-notification> injected into parent's conversation",
-      "Queue: SendMessage targets a running agent via pendingMessages array",
-      "Messages drained at tool-round boundaries (not mid-execution)",
-      "notified flag prevents duplicate completion messages",
+      "磁盘：每个任务都会写入一个 outputFile（JSONL 格式的执行记录）",
+      "通知：XML <task-notification> 被注入到父级的对话上下文中",
+      "队列：SendMessage 通过 pendingMessages 数组向正在运行的 Agent 发送消息",
+      "消息仅在工具轮次边界处被消费（不会在执行中途处理）",
+      "notified 标志用于防止重复发送完成消息",
     ],
   },
   coordinator: {
-    title: "Coordinator Mode",
+    title: "协调器模式",
     description:
-      "Manager-worker hierarchy. Coordinator gets only 3 tools: Agent, SendMessage, TaskStop.",
+      "管理者-工作者层级结构。协调器仅拥有 3 个工具：Agent、SendMessage、TaskStop。",
     details: [
-      "Coordinator thinks, plans, decomposes -- never touches code directly",
-      "Workers get full tool set minus coordination tools",
-      "4 phases: Research -> Synthesis -> Implementation -> Verification",
-      '"Never delegate understanding" -- coordinator synthesizes research',
-      "Scratchpad enables cross-worker knowledge sharing via filesystem",
+      "协调器负责思考、规划和任务分解 —— 从不直接接触代码",
+      "工作者拥有除协调工具外的完整工具集",
+      "4 个阶段：调研 -> 综合 -> 实施 -> 验证",
+      "“绝不委托理解” —— 协调器需自行综合调研结果",
+      "暂存区（Scratchpad）通过文件系统实现跨工作者的知识共享",
     ],
   },
 };
@@ -388,7 +388,7 @@ export default function TaskStateMachine({ className }: Props) {
               letterSpacing: "0.05em",
             }}
           >
-            Available Transitions
+            可用转换
           </div>
 
           {availableTransitions.length > 0 ? (
@@ -433,7 +433,7 @@ export default function TaskStateMachine({ className }: Props) {
             </div>
           ) : (
             <div style={{ fontSize: 13, color: colors.textSecondary }}>
-              Terminal state reached.
+              已到达终态。
               <button
                 onClick={reset}
                 style={{
@@ -450,7 +450,7 @@ export default function TaskStateMachine({ className }: Props) {
                   cursor: "pointer",
                 }}
               >
-                Reset to pending
+                重置为 pending
               </button>
             </div>
           )}
@@ -475,7 +475,7 @@ export default function TaskStateMachine({ className }: Props) {
               letterSpacing: "0.05em",
             }}
           >
-            Transition Detail
+            转换详情
           </div>
 
           <AnimatePresence mode="wait">
@@ -506,7 +506,7 @@ export default function TaskStateMachine({ className }: Props) {
                     marginBottom: 4,
                   }}
                 >
-                  Trigger:
+                  触发条件：
                 </div>
                 <div
                   style={{
@@ -535,7 +535,7 @@ export default function TaskStateMachine({ className }: Props) {
                 exit={{ opacity: 0 }}
               >
                 <div style={{ fontSize: 13, color: colors.textSecondary }}>
-                  Click a transition to see details and animate the state change.
+                  点击某个转换以查看详情并演示状态变更动画。
                 </div>
                 <div
                   style={{
@@ -585,7 +585,7 @@ export default function TaskStateMachine({ className }: Props) {
             letterSpacing: "0.05em",
           }}
         >
-          Communication Patterns
+          通信模式
         </div>
 
         {/* Tabs */}

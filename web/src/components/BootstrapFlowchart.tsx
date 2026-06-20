@@ -32,29 +32,29 @@ interface Step {
 const steps: Step[] = [
   {
     file: "cli.tsx",
-    description: "Fast-path dispatch",
-    detail: "--version, --help exit immediately",
+    description: "快速路径分发",
+    detail: "--version、--help 立即退出",
     hasFastPath: true,
   },
   {
     file: "main.tsx",
-    description: "Module-level I/O",
-    detail: "Subprocess spawns, keychain reads, TLS preconnect",
+    description: "模块级 I/O",
+    detail: "子进程创建、密钥链读取、TLS 预连接",
   },
   {
     file: "init.ts",
-    description: "Parse args, trust boundary",
-    detail: "Config resolution, 10 setup dialogs, init()",
+    description: "参数解析、信任边界",
+    detail: "配置解析、10 个设置对话框、init()",
   },
   {
     file: "setup.ts",
-    description: "Commands, agents, hooks, plugins",
-    detail: "Parallel loading with awaited I/O results",
+    description: "命令、Agent、钩子、插件",
+    detail: "并行加载并等待 I/O 结果",
   },
   {
     file: "replLauncher.ts",
-    description: "Seven launch paths converge",
-    detail: "REPL, one-shot, resume, MCP, pipe, eval, coordinator",
+    description: "七条启动路径汇聚",
+    detail: "REPL、单次执行、恢复、MCP、管道、eval、协调器",
     isDestination: true,
   },
 ];
@@ -256,7 +256,7 @@ export default function BootstrapFlowchart({ className }: Props) {
             color: colors.terracotta,
           }}
         >
-          Running REPL
+          REPL 运行中
         </motion.div>
       </div>
     </div>

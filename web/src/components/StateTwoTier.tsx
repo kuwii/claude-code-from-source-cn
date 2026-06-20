@@ -38,23 +38,23 @@ interface AppStateField {
 }
 
 const bootstrapFields: BootstrapField[] = [
-  { key: "sessionId", value: "a3f7c...", description: "Unique per process, generated via crypto.randomUUID()" },
-  { key: "model", value: "claude-sonnet-4", description: "Current model for API calls, set by mainLoopModelOverride" },
-  { key: "projectRoot", value: "/users/dev/proj", description: "NFC-normalized path, frozen after init()" },
-  { key: "totalCostUSD", value: "$0.42", description: "Monotonically accumulating session cost" },
-  { key: "permissionMode", value: "default", description: "Trust boundary for tool execution" },
-  { key: "isInteractive", value: "true", description: "REPL vs one-shot mode flag" },
-  { key: "promptCache1hEligible", value: "true", description: "Sticky latch -- extended cache TTL" },
-  { key: "afkModeHeaderLatched", value: "null", description: "Sticky latch -- once true, never false" },
+  { key: "sessionId", value: "a3f7c...", description: "每个进程唯一，通过 crypto.randomUUID() 生成" },
+  { key: "model", value: "claude-sonnet-4", description: "当前 API 调用使用的模型，由 mainLoopModelOverride 设置" },
+  { key: "projectRoot", value: "/users/dev/proj", description: "NFC 标准化路径，在 init() 后冻结" },
+  { key: "totalCostUSD", value: "$0.42", description: "单调递增的会话成本" },
+  { key: "permissionMode", value: "default", description: "工具执行的信任边界" },
+  { key: "isInteractive", value: "true", description: "REPL 与单次执行模式的标志位" },
+  { key: "promptCache1hEligible", value: "true", description: "粘性锁存器 -- 扩展缓存 TTL" },
+  { key: "afkModeHeaderLatched", value: "null", description: "粘性锁存器 -- 一旦为 true，永不回退" },
 ];
 
 const appStateFields: AppStateField[] = [
-  { key: "mainLoopModel", value: "claude-sonnet-4", description: "Model displayed in the UI and used for next API call" },
-  { key: "theme", value: "dark", description: "UI theme preference" },
-  { key: "verbose", value: "false", description: "Show detailed output toggle" },
-  { key: "permissionMode", value: "default", description: "Synced to Bootstrap STATE and CCR on change" },
-  { key: "messages", value: "[...28 msgs]", description: "Conversation history for UI rendering" },
-  { key: "tasks", value: "{agent-1: ...}", description: "Active subagent task tracking" },
+  { key: "mainLoopModel", value: "claude-sonnet-4", description: "UI 中显示并用于下一次 API 调用的模型" },
+  { key: "theme", value: "dark", description: "UI 主题偏好" },
+  { key: "verbose", value: "false", description: "显示详细输出的开关" },
+  { key: "permissionMode", value: "default", description: "变更时同步至 Bootstrap STATE 和 CCR" },
+  { key: "messages", value: "[...28 msgs]", description: "用于 UI 渲染的对话历史" },
+  { key: "tasks", value: "{agent-1: ...}", description: "活跃子代理任务追踪" },
 ];
 
 type AnimationStep =
@@ -65,11 +65,11 @@ type AnimationStep =
   | "api-reads";
 
 const STEP_LABELS: Record<AnimationStep, string> = {
-  idle: "Click \"Change Model\" to see the two-tier flow",
-  "dispatch-appstate": "1. UI dispatches to AppState store",
-  "onchange-fires": "2. onChange side effect fires synchronously",
-  "bootstrap-updates": "3. Bootstrap STATE.model is updated",
-  "api-reads": "4. Next API call reads from Bootstrap STATE",
+  idle: "点击“更改模型”以查看双层数据流",
+  "dispatch-appstate": "1. UI 派发至 AppState store",
+  "onchange-fires": "2. onChange 副作用同步触发",
+  "bootstrap-updates": "3. Bootstrap STATE.model 被更新",
+  "api-reads": "4. 下一次 API 调用从 Bootstrap STATE 读取",
 };
 
 interface StickyLatch {
@@ -93,7 +93,7 @@ export default function StateTwoTier({ className }: Props) {
   // Sticky latch demo
   const [thinkingLatch, setThinkingLatch] = useState<StickyLatch>({
     value: null,
-    label: "Extended thinking",
+    label: "扩展思考",
   });
 
   const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -170,7 +170,7 @@ export default function StateTwoTier({ className }: Props) {
   }, []);
 
   const resetLatch = useCallback(() => {
-    setThinkingLatch({ value: null, label: "Extended thinking" });
+    setThinkingLatch({ value: null, label: "扩展思考" });
   }, []);
 
   // Field row component
@@ -303,7 +303,7 @@ export default function StateTwoTier({ className }: Props) {
               lineHeight: 1.4,
             }}
           >
-            Mutable singleton -- available before React mounts. ~80 fields, accessed via getters/setters.
+            可变单例 -- 在 React 挂载前即可用。约 80 个字段，通过 getter/setter 访问。
           </div>
 
           {bootstrapFields.map((field) => {
@@ -338,7 +338,7 @@ export default function StateTwoTier({ className }: Props) {
               lineHeight: 1.5,
             }}
           >
-            DAG leaf: imports nothing. Importable from anywhere without circular dependencies.
+            DAG 叶节点：不导入任何模块。可从任意位置导入而无循环依赖。
           </div>
         </div>
 
@@ -400,7 +400,7 @@ export default function StateTwoTier({ className }: Props) {
               maxWidth: 70,
             }}
           >
-            Side effects bridge the tiers
+            副作用桥接两层状态
           </div>
         </div>
 
@@ -433,7 +433,7 @@ export default function StateTwoTier({ className }: Props) {
               lineHeight: 1.4,
             }}
           >
-            Reactive store -- 34-line closure with Object.is equality. Drives React via useSyncExternalStore.
+            响应式 store -- 34 行闭包实现，使用 Object.is 进行相等性判断。通过 useSyncExternalStore 驱动 React。
           </div>
 
           {appStateFields.map((field) => {
@@ -467,7 +467,7 @@ export default function StateTwoTier({ className }: Props) {
               lineHeight: 1.5,
             }}
           >
-            DeepImmutable snapshots. Updater functions prevent stale-state bugs.
+            DeepImmutable 快照。Updater 函数可防止状态过期 bug。
           </div>
         </div>
       </div>
@@ -497,7 +497,7 @@ export default function StateTwoTier({ className }: Props) {
             transition: "opacity 0.2s",
           }}
         >
-          Change Model
+          更改模型
         </button>
       </div>
 
@@ -522,7 +522,7 @@ export default function StateTwoTier({ className }: Props) {
             fontWeight: 600,
           }}
         >
-          Sticky Latch Demo
+          粘性锁存器演示
         </div>
 
         <div
@@ -585,7 +585,7 @@ export default function StateTwoTier({ className }: Props) {
               fontFamily: "var(--font-mono)",
             }}
           >
-            <span style={{ color: colors.textSecondary }}>Latch state:</span>
+            <span style={{ color: colors.textSecondary }}>锁存器状态：</span>
             <span
               style={{
                 fontWeight: 600,
@@ -598,9 +598,9 @@ export default function StateTwoTier({ className }: Props) {
               }}
             >
               {thinkingLatch.value === null
-                ? "null (not evaluated)"
+                ? "null（未求值）"
                 : thinkingLatch.value
-                  ? "true (LATCHED)"
+                  ? "true（已锁存）"
                   : "false"}
             </span>
           </div>
@@ -621,7 +621,7 @@ export default function StateTwoTier({ className }: Props) {
                 cursor: "pointer",
               }}
             >
-              Reset demo
+              重置演示
             </motion.button>
           )}
         </div>
@@ -646,12 +646,12 @@ export default function StateTwoTier({ className }: Props) {
                 overflow: "hidden",
               }}
             >
-              <strong style={{ color: colors.latchStuck }}>The toggle is stuck ON.</strong>{" "}
-              Once extended thinking is activated, the <code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>thinkingClearLatched</code> flag
-              stays <code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>true</code> for the rest of the session.{" "}
-              <strong>Why?</strong> The thinking budget is part of the API request body, which is part of the prompt cache key.
-              Toggling it off would bust the server-side cache for 50,000+ tokens of system prompt.
-              The latch ensures you only enter a cache namespace when you need it, then stay there.
+              <strong style={{ color: colors.latchStuck }}>开关已被锁定在开启状态。</strong>{" "}
+              一旦激活扩展思考，<code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>thinkingClearLatched</code> 标志
+              将在整个会话期间保持为 <code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: isDark ? "#333" : "#e8e6dc" }}>true</code>。{" "}
+              <strong>为什么？</strong> 思考预算属于 API 请求体的一部分，而请求体又是 prompt cache key 的组成部分。
+              将其关闭会导致服务端缓存失效，影响超过 50,000 token 的系统提示词。
+              该锁存器确保你仅在需要时进入特定的缓存命名空间，之后便一直保持在该命名空间中。
             </motion.div>
           )}
         </AnimatePresence>
@@ -670,15 +670,15 @@ export default function StateTwoTier({ className }: Props) {
         >
           <span>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: colors.latchOff, marginRight: 4, verticalAlign: "middle" }} />
-            null = not evaluated
+            null = 未求值
           </span>
           <span>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: colors.latchStuck, marginRight: 4, verticalAlign: "middle" }} />
-            true = latched (permanent)
+            true = 已锁存（永久）
           </span>
           <span>
             <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: colors.textSecondary, marginRight: 4, verticalAlign: "middle" }} />
-            never returns to false
+            永远不会回退到 false
           </span>
         </div>
       </div>
@@ -704,10 +704,10 @@ export default function StateTwoTier({ className }: Props) {
           }}
         >
           <div style={{ fontWeight: 600, color: colors.terracotta, marginBottom: 4 }}>Bootstrap STATE</div>
-          <div>Consumers: API client, cost tracker, context builder</div>
-          <div>Persistence: process exit handlers</div>
-          <div>Dependencies: DAG leaf (nothing)</div>
-          <div>Test reset: resetStateForTests()</div>
+          <div>消费者：API 客户端、成本追踪器、上下文构建器</div>
+          <div>持久化：进程退出处理程序</div>
+          <div>依赖项：DAG 叶节点（无依赖）</div>
+          <div>测试重置：resetStateForTests()</div>
         </div>
         <div
           style={{
@@ -721,10 +721,10 @@ export default function StateTwoTier({ className }: Props) {
           }}
         >
           <div style={{ fontWeight: 600, color: colors.green, marginBottom: 4 }}>AppState Store</div>
-          <div>Consumers: React components, side effects</div>
-          <div>Persistence: via onChange to disk</div>
-          <div>Dependencies: imports types across codebase</div>
-          <div>Test reset: create new store instance</div>
+          <div>消费者：React 组件、副作用</div>
+          <div>持久化：通过 onChange 写入磁盘</div>
+          <div>依赖项：跨代码库导入类型</div>
+          <div>测试重置：创建新的 store 实例</div>
         </div>
       </div>
     </div>

@@ -62,64 +62,64 @@ const nodes: FlowNode[] = [
     id: "start",
     label: "executeHooks()",
     kind: "action",
-    detail: "Hook event triggered",
+    detail: "Hook 事件已触发",
   },
   {
     id: "trusted",
-    label: "Workspace trusted?",
+    label: "工作区是否受信任？",
     kind: "decision",
   },
   {
     id: "skip",
-    label: "Return immediately",
+    label: "立即返回",
     kind: "outcome",
     color: "#87867f",
-    detail: "Hooks disabled",
+    detail: "Hooks 已禁用",
   },
   {
     id: "match",
-    label: "Match hook config rules",
+    label: "匹配 Hook 配置规则",
     kind: "action",
-    detail: "Filter by event type + pattern",
+    detail: "按事件类型 + 模式过滤",
   },
   {
     id: "run",
-    label: "Run matching hooks",
+    label: "运行匹配的 Hooks",
     kind: "action",
-    detail: "Parallel execution with timeout",
+    detail: "带超时的并行执行",
   },
   {
     id: "exit",
-    label: "Check exit code",
+    label: "检查退出码",
     kind: "decision",
   },
   {
     id: "success",
-    label: "Exit 0: Success",
+    label: "Exit 0: 成功",
     kind: "outcome",
     color: "#22c55e",
-    detail: "Tool call proceeds",
+    detail: "工具调用继续执行",
   },
   {
     id: "block",
-    label: "Exit 2: Block",
+    label: "Exit 2: 阻止",
     kind: "outcome",
     color: "#ef4444",
-    detail: "Tool call rejected",
+    detail: "工具调用被拒绝",
   },
   {
     id: "warn",
-    label: "Other: Warning",
+    label: "其他: 警告",
     kind: "outcome",
     color: "#eab308",
-    detail: "Logged, call proceeds",
+    detail: "已记录日志，调用继续执行",
   },
 ];
 
 const connections: FlowConnection[] = [
   { from: "start", to: "trusted" },
-  { from: "trusted", to: "skip", label: "No", side: "right" },
-  { from: "trusted", to: "match", label: "Yes" },
+  { from: "trusted", to: "skip", label: "否", side: "right" },
+  { from: "trusted", to: "match", label: "是" },
   { from: "match", to: "run" },
   { from: "run", to: "exit" },
   { from: "exit", to: "success" },
@@ -410,7 +410,7 @@ export default function HookExecutionFlow({
           fontFamily: "var(--font-mono)",
         }}
       >
-        Hook Execution Flow
+        Hook 执行流程
       </motion.div>
 
       {/* Step 1: executeHooks */}
@@ -446,7 +446,7 @@ export default function HookExecutionFlow({
               gap: 2,
             }}
           >
-            <BranchLabel label="No" colors={colors} />
+            <BranchLabel label="否" colors={colors} />
             <SideArrow color={colors.border} direction="right" />
           </div>
           <motion.div
@@ -468,7 +468,7 @@ export default function HookExecutionFlow({
           gap: 0,
         }}
       >
-        <BranchLabel label="Yes" colors={colors} />
+        <BranchLabel label="是" colors={colors} />
         <DownArrow color={colors.border} />
       </div>
 
