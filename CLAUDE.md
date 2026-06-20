@@ -55,7 +55,7 @@ claude-code-from-source/
 - Commit messages: what changed and why, not what files were touched
 
 ## Repo
-- GitHub: kuwii/claude-code-from-source
+- GitHub: kuwii/claude-code-from-source-cn
 - Future domain: TBD (considering claude-code-from-source.com)
 
 ## Tech Stack (Web App — Future)
